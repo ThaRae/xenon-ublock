@@ -15,20 +15,22 @@ they can go upstream.
 
 ## Using them
 
-`apply.py` makes a patched copy of a Ladybird checkout for a build to use, and leaves the checkout alone:
+Xenon carries these patches in its own Ladybird patch series, as `Patches/ladybird/0004` to `0009`, after Xenon's own
+patches (see `integration/xenon/`). `Meta/xenon.py build` applies the whole series to the `ladybird` submodule with
+`Meta/patches.py`. The files here use the same `format-patch` options as Xenon's, and they are the same commits,
+based on plain Ladybird instead of on Xenon's patches.
+
+For another Ladybird checkout, `apply.py` makes a patched copy for a build to use, and leaves the checkout alone:
 
 ```bash
-engine/apply.py --ladybird ../Xenon/ladybird --into ../Xenon/Build/ladybird-patched
+engine/apply.py --ladybird ../ladybird --into build/ladybird-patched
 ```
 
 The copy is a `git clone --shared` of the checkout (it borrows its objects) at `LADYBIRD_BASE`, with the patches as
 commits. Running it again is a no-op unless the patches or the base changed, so a build can run it every time.
 `--check` only tests that the patches apply.
 
-The files are exported with the same options as Xenon's own `Patches/ladybird` series (`Meta/patches.py export`), so
-they can join that series unchanged. They apply with `git am --3way` both after and before Xenon's patches.
-
-Xenon does this in `Meta/xenon.py` (see `integration/xenon/`), and passes the browser:
+Xenon passes the browser:
 
 - `--trusted-content-blocker-list` for uBO's own lists (`"trusted": true` in `dist-xenon/manifest.json`, the
   `ublock-*` lists), which may use the scriptlets uBO reserves for trusted lists;
@@ -64,11 +66,17 @@ The patches are `git format-patch` output from a branch:
 git clone --shared ../Xenon/ladybird build/ladybird-dev
 git -C build/ladybird-dev checkout -b xenon-ublock $(cat engine/LADYBIRD_BASE)
 git -C build/ladybird-dev am engine/patches/*.patch
-# ... edit, build (Meta/xenon.py builds from Build/ladybird-patched, or point a Xenon checkout's submodule at this
-# clone), commit or amend ...
+# ... edit, commit or amend ...
 rm engine/patches/*.patch
 git -C build/ladybird-dev format-patch --zero-commit --no-numbered --no-signature --full-index -o "$PWD/engine/patches" $(cat engine/LADYBIRD_BASE)..
 ```
+
+Keep Xenon's copies in step. To build and test a change, take it into a Xenon checkout's series: run
+`Meta/patches.py apply` there, drop the six xenon-ublock commits from `ladybird/`'s `xenon-patches` branch (with
+`git reset --hard HEAD~6` while they're the last ones), `git am --3way` the files from `engine/patches`, then
+`Meta/patches.py export` and commit `Patches/ladybird`. A change made in Xenon's copy comes back the same way, in the
+other direction: `git format-patch` those commits from `ladybird/`, `git am --3way` them in `build/ladybird-dev`, and
+export.
 
 When Xenon moves its submodule to a new Ladybird commit, rebase the branch onto it (`git rebase NEW`), fix any
 conflicts, export the patches again, and write the new commit to `LADYBIRD_BASE`.

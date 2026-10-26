@@ -1,49 +1,44 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Ryan <ryan@esterlines.com>
-Date: Mon, 26 Oct 2026 14:58:56 -0400
-Subject: [PATCH] Build Ladybird with xenon-ublock's engine patches
+Date: Mon, 26 Oct 2026 18:39:21 -0400
+Subject: [PATCH 2/2] Use the content blocker patches: trusted lists,
+ resources, and Block Element
 
-xenon-ublock carries a Ladybird patch series that adds what uBlock
-Origin needs beyond Ladybird's content blocker: scriptlets, procedural
-and action cosmetic filters, $redirect surrogates, $removeparam, $popup
-and $method filters, CNAME uncloaking, and an element picker.
-
-Meta/xenon.py applies the series with xenon-ublock's engine/apply.py
-into Build/ladybird-patched, a copy of the ladybird submodule (which
-stays as it is), and builds that. The copy is only redone when the
-submodule or the patches change. xenon-ublock is found through
-XENON_UBLOCK_DIR, ./xenon-ublock or ../xenon-ublock.
+Patches/ladybird 0004-0009 let Ladybird's content blocker apply uBlock
+Origin's scriptlets, procedural filters, $redirect surrogates,
+$removeparam, $popup and CNAME filters. This puts them to use.
 
 Meta/update-filter-lists.py now converts the lists for the patched
-engine, so they keep uBlock Origin's scriptlets and the other filters
-the stock engine drops. uBlock Origin's own lists go in trusted-lists/,
-which UI/FilterLists.cpp passes as --trusted-content-blocker-list so
-they may use the scriptlets uBO reserves for its lists, and uBO's
-scriptlets and redirect surrogates go in resources/, passed as
---content-blocker-resources. Meta/check.py knows the new layout.
+engine, so they keep the filters the stock engine had to drop. uBlock
+Origin's own lists go in trusted-lists/, which UI/FilterLists.cpp passes
+as --trusted-content-blocker-list so they may use the scriptlets uBO
+reserves for its lists, and uBO's scriptlets and redirect surrogates go
+in resources/, passed as --content-blocker-resources. Meta/check.py knows
+the new layout.
 
-The context menu's new Block Element... action (from the patches) ends
-in a dialog that shows the picked element's filter for the user to edit
-and add to the custom filters (UI/ElementPicker.cpp).
+The context menu's new Block Element... action ends in a dialog that
+shows the picked element's filter for the user to edit and add to the
+custom filters (UI/ElementPicker.cpp).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ---
  Meta/check.py               |  8 +++++-
- Meta/update-filter-lists.py | 39 ++++++++++++++++++++--------
- Meta/xenon.py               | 51 +++++++++++++++++++++++++++++++++++--
- UI/ElementPicker.cpp        | 29 +++++++++++++++++++++
+ Meta/update-filter-lists.py | 39 +++++++++++++++++++++--------
+ UI/ElementPicker.cpp        | 29 ++++++++++++++++++++++
  UI/ElementPicker.h          | 20 +++++++++++++++
- UI/FilterLists.cpp          | 49 +++++++++++++++++++++++++----------
+ UI/FilterLists.cpp          | 49 ++++++++++++++++++++++++++-----------
  UI/FilterLists.h            |  4 +++
  UI/Tab.cpp                  |  2 ++
  UI/Xenon.cmake              |  6 +++++
- 9 files changed, 181 insertions(+), 27 deletions(-)
+ 8 files changed, 132 insertions(+), 25 deletions(-)
  create mode 100644 UI/ElementPicker.cpp
  create mode 100644 UI/ElementPicker.h
 
 diff --git a/Meta/check.py b/Meta/check.py
-index a48b218..1d4de66 100755
+index 1cf23e5..85ee3dd 100755
 --- a/Meta/check.py
 +++ b/Meta/check.py
-@@ -185,7 +185,11 @@ def check_filter_lists(checks: Checks):
+@@ -192,7 +192,11 @@ def check_filter_lists(checks: Checks):
  
      manifest = json.loads(manifest_path.read_text())
      listed = {entry["file"] for entry in manifest["lists"]}
@@ -56,7 +51,7 @@ index a48b218..1d4de66 100755
      for file in sorted(listed - present):
          checks.fail("filter lists", f"the manifest names {file}, which is missing")
      for file in sorted(present - listed):
-@@ -198,6 +202,8 @@ def check_filter_lists(checks: Checks):
+@@ -205,6 +209,8 @@ def check_filter_lists(checks: Checks):
              checks.fail(
                  "filter lists", f"{entry['id']} ships although it's excluded: {manifest['excluded'][entry['id']]}"
              )
@@ -66,7 +61,7 @@ index a48b218..1d4de66 100755
          if not (directory / name).exists():
              checks.fail("filter lists", f"UI/Resources/filter-lists/{name} is missing; the lists' licenses require it")
 diff --git a/Meta/update-filter-lists.py b/Meta/update-filter-lists.py
-index 75c0c3b..731a997 100755
+index 75c0c3b..71fc3e0 100755
 --- a/Meta/update-filter-lists.py
 +++ b/Meta/update-filter-lists.py
 @@ -9,6 +9,11 @@
@@ -74,10 +69,10 @@ index 75c0c3b..731a997 100755
  # Xenon ships the lists Helium's uBlock Origin fork turns on (xenon-ublock's "helium" preset), except the ones in
  # EXCLUDED. Every shipped list's file records its source, its license, and what the conversion kept.
 +#
-+# The lists are converted for Ladybird with xenon-ublock's engine patches, which Meta/xenon.py builds with: they keep
-+# uBlock Origin's scriptlets, procedural filters, popup and CNAME filters. uBlock Origin's own lists go in
-+# trusted-lists/, which may use the scriptlets uBO reserves for its lists, and uBO's scriptlets and redirect
-+# surrogates in resources/.
++# The lists are converted for Ladybird with the content blocker patches in Xenon's patch series (Patches/ladybird, from
++# xenon-ublock): they keep uBlock Origin's scriptlets, procedural filters, popup and CNAME filters. uBlock Origin's own
++# lists go in trusted-lists/, which may use the scriptlets uBO reserves for its lists, and uBO's scriptlets and
++# redirect surrogates in resources/.
  
  import argparse
  import json
@@ -164,87 +159,6 @@ index 75c0c3b..731a997 100755
      for entry in shipped:
          upstream = entry["upstream"]
          lines += [
-diff --git a/Meta/xenon.py b/Meta/xenon.py
-index bf2e71c..d5530ac 100755
---- a/Meta/xenon.py
-+++ b/Meta/xenon.py
-@@ -20,6 +20,9 @@ from pathlib import Path
- XENON_SOURCE_DIR = Path(__file__).resolve().parent.parent
- LADYBIRD_SOURCE_DIR = XENON_SOURCE_DIR / "ladybird"
- BUILD_ROOT_DIR = XENON_SOURCE_DIR / "Build"
-+# Ladybird with xenon-ublock's engine patches applied (see prepare_ladybird_source()). The ladybird submodule stays as
-+# it is; this copy is what gets built.
-+PATCHED_LADYBIRD_SOURCE_DIR = BUILD_ROOT_DIR / "ladybird-patched"
- 
- if not (LADYBIRD_SOURCE_DIR / "Meta" / "ladybird.py").exists():
-     print("The ladybird submodule is missing. Run: git submodule update --init --depth 1", file=sys.stderr)
-@@ -105,12 +108,56 @@ def configure_build_env(preset: str, jobs: str | None) -> tuple[Path, Path]:
-     return build_dir, vcpkg_dir
- 
- 
-+def find_xenon_ublock() -> Path:
-+    candidates = [Path(os.environ["XENON_UBLOCK_DIR"])] if "XENON_UBLOCK_DIR" in os.environ else []
-+    candidates += [XENON_SOURCE_DIR / "xenon-ublock", XENON_SOURCE_DIR.parent / "xenon-ublock"]
-+    for candidate in candidates:
-+        if (candidate / "engine" / "apply.py").exists():
-+            return candidate
-+    sys.exit(
-+        "Xenon builds Ladybird with xenon-ublock's engine patches (uBlock Origin's scriptlets, surrogates, popup and "
-+        "CNAME blocking, the element picker), and can't find xenon-ublock. Clone it next to Xenon, as ../xenon-ublock, "
-+        "or point XENON_UBLOCK_DIR at it."
-+    )
-+
-+
-+def prepare_ladybird_source() -> Path:
-+    # Refreshes the patched copy of Ladybird. It is a no-op when neither the submodule nor the patches changed.
-+    run_command(
-+        [
-+            sys.executable,
-+            find_xenon_ublock() / "engine" / "apply.py",
-+            "--ladybird",
-+            LADYBIRD_SOURCE_DIR,
-+            "--into",
-+            PATCHED_LADYBIRD_SOURCE_DIR,
-+        ]
-+    )
-+    return PATCHED_LADYBIRD_SOURCE_DIR
-+
-+
-+def configured_source_dir(build_dir: Path) -> Path | None:
-+    cache = build_dir / "CMakeCache.txt"
-+    if not cache.exists():
-+        return None
-+    for line in cache.read_text().splitlines():
-+        if line.startswith("CMAKE_HOME_DIRECTORY:INTERNAL="):
-+            return Path(line.partition("=")[2])
-+    return None
-+
-+
- def configure_main(platform: Platform, preset: str, cc: str, cxx: str, jobs: str | None) -> Path:
-     build_dir, vcpkg_dir = configure_build_env(preset, jobs)
-     build_vcpkg(vcpkg_dir)
-+    source_dir = prepare_ladybird_source()
- 
-     if build_dir.joinpath("build.ninja").exists():
--        return build_dir
-+        if configured_source_dir(build_dir) == source_dir:
-+            return build_dir
-+        # A build configured from the submodule, from before Xenon applied xenon-ublock's patches.
-+        print(f"Reconfiguring {build_dir.name} to build {source_dir.relative_to(XENON_SOURCE_DIR)}")
-+        build_dir.joinpath("CMakeCache.txt").unlink()
-+        shutil.rmtree(build_dir / "CMakeFiles", ignore_errors=True)
- 
-     cc, cxx = pick_host_compiler(platform, cc, cxx)
- 
-@@ -120,7 +167,7 @@ def configure_main(platform: Platform, preset: str, cc: str, cxx: str, jobs: str
-             "--preset",
-             preset,
-             "-S",
--            LADYBIRD_SOURCE_DIR,
-+            source_dir,
-             "-B",
-             build_dir,
-             f"-DCMAKE_C_COMPILER={cc}",
 diff --git a/UI/ElementPicker.cpp b/UI/ElementPicker.cpp
 new file mode 100644
 index 0000000..8e222aa
@@ -282,7 +196,7 @@ index 0000000..8e222aa
 +}
 diff --git a/UI/ElementPicker.h b/UI/ElementPicker.h
 new file mode 100644
-index 0000000..a1c7133
+index 0000000..d07f5f5
 --- /dev/null
 +++ b/UI/ElementPicker.h
 @@ -0,0 +1,20 @@
@@ -300,9 +214,9 @@ index 0000000..a1c7133
 +
 +namespace Ladybird::ElementPicker {
 +
-+// The context menu's Block Element... action (from xenon-ublock's engine patches) lets the user click an element and
-+// makes a uBlock Origin cosmetic filter that hides it on its site. This shows the filter, lets the user edit it, and
-+// adds it to the content blocker's custom filters, which applies it everywhere at once.
++// The context menu's Block Element... action (from Patches/ladybird) lets the user click an element and makes a uBlock
++// Origin cosmetic filter that hides it on its site. This shows the filter, lets the user edit it, and adds it to the
++// content blocker's custom filters, which applies it everywhere at once.
 +void confirm_filter(QWidget& parent, String const& filter);
 +
 +}
@@ -392,7 +306,7 @@ index e26f1b6..36abe70 100644
  
      arguments.strings = strings.span();
 diff --git a/UI/FilterLists.h b/UI/FilterLists.h
-index 63d773c..8289ff0 100644
+index 63d773c..4b7cb53 100644
 --- a/UI/FilterLists.h
 +++ b/UI/FilterLists.h
 @@ -14,6 +14,10 @@ namespace Ladybird::FilterLists {
@@ -402,12 +316,12 @@ index 63d773c..8289ff0 100644
 +//
 +// uBlock Origin's own lists go in as --trusted-content-blocker-list, which lets them use the scriptlets uBO reserves
 +// for its lists, and uBO's scriptlets and redirect surrogates as --content-blocker-resources. Both options come with
-+// xenon-ublock's engine patches, which Meta/xenon.py always builds Ladybird with.
++// the content blocker patches in Xenon's patch series (Patches/ladybird).
  Main::Arguments with_bundled_filter_lists(Main::Arguments);
  
  }
 diff --git a/UI/Tab.cpp b/UI/Tab.cpp
-index de9a98e..a7805df 100644
+index 551addc..c2d813b 100644
 --- a/UI/Tab.cpp
 +++ b/UI/Tab.cpp
 @@ -23,6 +23,7 @@
@@ -415,10 +329,10 @@ index de9a98e..a7805df 100644
  #include <UI/ContentBlockingButton.h>
  #include <UI/ContentBlockingPopover.h>
 +#include <UI/ElementPicker.h>
+ #include <UI/Extensions/Toolbar.h>
  #include <UI/Icon.h>
  #include <UI/JavaScriptDialog.h>
- #if defined(AK_OS_MACOS)
-@@ -851,6 +852,7 @@ void Tab::initialize(Optional<WebView::CanonicalTraversable&> traversable)
+@@ -854,6 +855,7 @@ void Tab::initialize(Optional<WebView::CanonicalTraversable&> traversable)
      m_content_blocking_button->setToolTip("Ad Block");
      QObject::connect(m_content_blocking_button, &QToolButton::clicked, this, [this] { show_content_blocking_popover(); });
      view().on_content_blocking_change = [this](auto const& snapshot) { update_content_blocking_controls(snapshot); };
@@ -427,7 +341,7 @@ index de9a98e..a7805df 100644
      content_blocker_count_visibility_changed();
  
 diff --git a/UI/Xenon.cmake b/UI/Xenon.cmake
-index b1baf1e..29cccc0 100644
+index 40c7621..11f4310 100644
 --- a/UI/Xenon.cmake
 +++ b/UI/Xenon.cmake
 @@ -39,6 +39,7 @@ set(XENON_SOURCES
@@ -437,8 +351,8 @@ index b1baf1e..29cccc0 100644
 +    ElementPicker.cpp
      EventLoopImplementationQt.cpp
      EventLoopImplementationQtEventTarget.cpp
-     FilterLists.cpp
-@@ -248,6 +249,11 @@ copy_resources_to_build("${xenon_resource_dir}" xenon)
+     Extensions/Alarms.cpp
+@@ -268,6 +269,11 @@ copy_resources_to_build("${xenon_resource_dir}" xenon)
  # UI/FilterLists.cpp hands the lists to the browser at startup; the notice and license travel with them.
  file(GLOB XENON_FILTER_LISTS CONFIGURE_DEPENDS "${XENON_UI_DIR}/Resources/filter-lists/lists/*.txt")
  copy_resource_set(xenon/filter-lists/lists RESOURCES ${XENON_FILTER_LISTS} DESTINATION "${xenon_resource_dir}" TARGET xenon)

@@ -13,7 +13,8 @@ Brave's `adblock` crate, which reads most of uBO's filter syntax. This repositor
 - **Engine patches** (`engine/`): a Ladybird patch series that adds what uBO needs beyond Ladybird's blocker:
   scriptlets, procedural cosmetic filters, `$redirect` surrogates, `$removeparam`, popup blocking, CNAME uncloaking,
   and an element picker, with uBO's own scriptlets and surrogates (`tools/build_resources.mjs`).
-  `integration/xenon/` is the change that makes Xenon build with them.
+  Xenon carries them in its own Ladybird patch series; `integration/xenon/` has the Xenon commits that add and use
+  them.
 
 - [docs/gap-analysis.md](docs/gap-analysis.md): which uBO features work on Ladybird as-is, which this repo
   translates, and which the engine patches add.
@@ -134,18 +135,17 @@ source, license and what was kept. `dist/` is not committed; build it, or publis
 Xenon (from commit `578e2b1`) bundles the `helium` preset with `Meta/update-filter-lists.py` and passes it as
 `--content-blocker-list` arguments (`UI/FilterLists.cpp`), as described below.
 
-`integration/xenon/0001-Build-Ladybird-with-xenon-ublock-s-engine-patches.patch` takes it the rest of the way. Apply it
-to Xenon with `git am`, then run `Meta/update-filter-lists.py`:
+The two patches in `integration/xenon/` take it the rest of the way. They apply with `git am` on top of Xenon's
+extensions branch (`claude/webextensions-42c7aa` at `b47266d`), which added Xenon's Ladybird patch series. Then run
+`Meta/update-filter-lists.py`. Xenon's `xenon-ublock` branch has all three commits.
 
-- `Meta/xenon.py` builds Ladybird from `Build/ladybird-patched`, which `engine/apply.py` makes from the `ladybird`
-  submodule (left as it is) and refreshes when the patches change. It finds this repo through `XENON_UBLOCK_DIR`,
-  `./xenon-ublock` (a submodule there works for CI) or `../xenon-ublock`. The first build after it reconfigures and
-  rebuilds everything.
-- `Meta/update-filter-lists.py` converts the lists for the patched engine, puts uBO's own lists in
+- `0001` adds `engine/patches` to the series as `Patches/ladybird/0004` to `0009`, after Xenon's own patches.
+  `Meta/xenon.py build` applies the series to the `ladybird` submodule with `Meta/patches.py`, so building needs
+  nothing from this repo.
+- `0002`: `Meta/update-filter-lists.py` converts the lists for the patched engine, putting uBO's own lists in
   `trusted-lists/` and uBO's resources in `resources/`. `UI/FilterLists.cpp` passes them as
-  `--trusted-content-blocker-list` and `--content-blocker-resources`.
-- Block Element... in the context menu ends in a dialog that shows the filter for the picked element, to edit and
-  add to the custom filters (`UI/ElementPicker.cpp`).
+  `--trusted-content-blocker-list` and `--content-blocker-resources`. Block Element... in the context menu ends in a
+  dialog that shows the filter for the picked element, to edit and add to the custom filters (`UI/ElementPicker.cpp`).
 
 Ladybird already has everything needed to load these lists. What Xenon has to decide is how they reach the profile.
 Turning ad blocking on is `Settings::set_content_blocker_enabled(true)`, which is what Ladybird's own welcome page
@@ -224,8 +224,8 @@ tools/verify.py          check the output against Ladybird's real engine
 tools/e2e_xenon.py       check the output in a built Xenon
 tools/e2e_engine.py      check the engine patches' features in a patched Xenon
 tools/e2e_cname.py       check CNAME uncloaking, with a local DNS server
-engine/                  the Ladybird patch series, apply.py, and its README
-integration/xenon/       the Xenon change that builds with the patches
+engine/                  the Ladybird patch series (also in Xenon's Patches/ladybird), apply.py, and its README
+integration/xenon/       the Xenon commits that add the patches to Xenon's series and use them
 probe/                   per-line parser check, pinned to Ladybird's adblock version and features
 harness/engine_check.c   links Ladybird's content blocker crate
 tests/                   engine behavior and preset expectations

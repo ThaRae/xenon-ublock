@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Checks that a Xenon built with integration/xenon applies uBlock Origin's scriptlets from the lists it bundles.
+"""Checks that a Xenon with integration/xenon's commits applies uBlock Origin's scriptlets from the lists it bundles.
 
 The browser gets no list options: only what Xenon bundles applies (UI/FilterLists.cpp passes uBO's own lists as
 trusted, the others as ordinary lists, and uBO's resources). A local DNS server sends the hostnames of real filters
