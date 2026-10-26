@@ -1,0 +1,82 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Ryan <ryan@esterlines.com>
+Date: Mon, 26 Oct 2026 14:29:18 -0400
+Subject: [PATCH 3/4] LibWeb: Run content blocker scriptlets and procedural
+ filters at document start
+
+uBlock Origin's scriptlets (##+js) must run before a page's own scripts,
+and its procedural cosmetic filters (##...:has-text(), :remove(), ...)
+need script to evaluate. The content blocker's page script carries both,
+and now runs in every new document right before scripts may run for it:
+next to where WebDriver BiDi runs its preload scripts, for navigated
+documents, for child navigables' first about:blank documents (which ads
+are often written into), and for popups' first documents.
+
+A Window that outlives its initial about:blank document runs it once.
+---
+ Libraries/LibWeb/DOM/Document.cpp                   | 3 +++
+ Libraries/LibWeb/HTML/LocalNavigable.cpp            | 6 ++++++
+ Libraries/LibWeb/HTML/LocalTraversableNavigable.cpp | 5 +++++
+ 3 files changed, 14 insertions(+)
+
+diff --git a/Libraries/LibWeb/DOM/Document.cpp b/Libraries/LibWeb/DOM/Document.cpp
+index d4d7cd02..96268f7c 100644
+--- a/Libraries/LibWeb/DOM/Document.cpp
++++ b/Libraries/LibWeb/DOM/Document.cpp
+@@ -7983,6 +7983,9 @@ void Document::update_for_history_step_application(NonnullRefPtr<HTML::SessionHi
+         if (!scrolling_blocked_in_new_document)
+             try_to_scroll_to_the_fragment(allow_text_directive_scroll);
+ 
++        // AD-HOC: The content blocker's scriptlets and procedural filters run before any script of the document's own.
++        ContentBlocker::the().run_page_script(*this);
++
+         // 4. At this point scripts may run for the newly-created document document.
+         set_ready_to_run_scripts();
+     }
+diff --git a/Libraries/LibWeb/HTML/LocalNavigable.cpp b/Libraries/LibWeb/HTML/LocalNavigable.cpp
+index da201367..30b50766 100644
+--- a/Libraries/LibWeb/HTML/LocalNavigable.cpp
++++ b/Libraries/LibWeb/HTML/LocalNavigable.cpp
+@@ -81,6 +81,7 @@
+ #include <LibWeb/Layout/Node.h>
+ #include <LibWeb/Layout/NodeArena.h>
+ #include <LibWeb/Layout/Viewport.h>
++#include <LibWeb/Loader/ContentBlocker.h>
+ #include <LibWeb/Loader/GeneratedPagesLoader.h>
+ #include <LibWeb/Page/Page.h>
+ #include <LibWeb/Page/RenderingStats.h>
+@@ -1134,6 +1135,11 @@ void LocalNavigable::initialize_navigable(NonnullRefPtr<DocumentState> document_
+     //         top-level traversable by the window handle it gets once it is created, so it does that once it has one.
+     if (WebDriver::BiDi::is_active() && !is_top_level_traversable() && !is_stand_in)
+         WebDriver::BiDi::document_is_ready_for_scripts(document);
++
++    // AD-HOC: Ads load into about:blank frames that their parent writes into, so the content blocker's scriptlets and
++    //         procedural filters run in a child navigable's first document too, before its parent can reach it.
++    if (!is_top_level_traversable() && !is_stand_in)
++        ContentBlocker::the().run_page_script(document);
+ }
+ 
+ // AD-HOC: The debug settings and the compositor tree are per page, so a child navigable starts from its parent's. A
+diff --git a/Libraries/LibWeb/HTML/LocalTraversableNavigable.cpp b/Libraries/LibWeb/HTML/LocalTraversableNavigable.cpp
+index d855e13c..ad5c5813 100644
+--- a/Libraries/LibWeb/HTML/LocalTraversableNavigable.cpp
++++ b/Libraries/LibWeb/HTML/LocalTraversableNavigable.cpp
+@@ -26,6 +26,7 @@
+ #include <LibWeb/HTML/SourceSnapshotParams.h>
+ #include <LibWeb/HTML/Window.h>
+ #include <LibWeb/Layout/Viewport.h>
++#include <LibWeb/Loader/ContentBlocker.h>
+ #include <LibWeb/Page/Page.h>
+ #include <LibWeb/Platform/EventLoopPlugin.h>
+ #include <LibWeb/WebDriver/BiDi/BiDi.h>
+@@ -134,6 +135,10 @@ GC::Ref<LocalTraversableNavigable> LocalTraversableNavigable::create_for_new_web
+     if (WebDriver::BiDi::is_active())
+         WebDriver::BiDi::document_is_ready_for_scripts(*traversable->active_document());
+ 
++    // AD-HOC: A popup's first document is about:blank, which its opener can write into, so the content blocker's
++    //         scriptlets and procedural filters run in it too.
++    ContentBlocker::the().run_page_script(*traversable->active_document());
++
+     return traversable;
+ }
+ 

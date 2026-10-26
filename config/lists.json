@@ -12,6 +12,12 @@
     }
   },
 
+  "ublock": {
+    "_comment": "uBlock Origin release whose scriptlets and redirect resources the patched engine loads. Helium pins the same version.",
+    "version": "1.75.0",
+    "source": "https://github.com/gorhill/uBlock/archive/refs/tags/{version}.tar.gz"
+  },
+
   "environment": {
     "_comment": "Values for uBO's !#if tokens. Ladybird is not Chromium, Firefox, Safari or a mobile build. Its cosmetic CSS is a user-origin style sheet, so cap_user_stylesheet holds. It cannot filter HTML or match IP addresses. Tokens not listed here are false, as in uBO.",
     "ext_ublock": true,

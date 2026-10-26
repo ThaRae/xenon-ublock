@@ -26,6 +26,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tarfile
 import time
 import urllib.error
 import urllib.parse
@@ -779,6 +780,46 @@ def engine_drop_reason(verdict: dict) -> str | None:
     return None
 
 
+
+# --- uBlock Origin resources --------------------------------------------------------------------------------------
+
+
+def build_resources(config: dict, fetcher: Fetcher, out_dir: Path) -> dict:
+    """Builds the scriptlet and redirect resources the patched engine (engine/) loads, from uBO's source."""
+    version = config["version"]
+    archive_url = config["source"].format(version=version)
+    body, _ = fetcher.get(archive_url)
+    source_root = ROOT / "build" / "ubo" / version
+    if not (source_root / "src").exists():
+        shutil.rmtree(source_root, ignore_errors=True)
+        source_root.mkdir(parents=True)
+        archive = ROOT / "build" / "ubo" / f"{version}.tar.gz"
+        archive.write_bytes(body)
+        with tarfile.open(archive) as tar:
+            tar.extractall(source_root, filter="data")
+        # GitHub archives hold one top-level directory.
+        (top,) = [path for path in source_root.iterdir() if path.is_dir()]
+        for child in top.iterdir():
+            child.rename(source_root / child.name)
+        top.rmdir()
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    output = out_dir / "ublock-resources.json"
+    result = subprocess.run(["node", str(ROOT / "tools" / "build_resources.mjs"), str(source_root), str(output), version],
+                            check=True, capture_output=True, text=True)
+    print(result.stdout.strip())
+    shutil.copyfile(source_root / "LICENSE.txt", out_dir / "LICENSE.txt")
+    data = output.read_bytes()
+    return {
+        "file": f"{out_dir.name}/{output.name}",
+        "ublock_version": version,
+        "source": archive_url,
+        "license": "GPL-3.0",
+        "bytes": len(data),
+        "sha256": hashlib.sha256(data).hexdigest(),
+    }
+
+
 # --- Building -----------------------------------------------------------------------------------------------------
 
 
@@ -1012,6 +1053,8 @@ def main():
     parser.add_argument("--offline", action="store_true", help="only use cached downloads")
     parser.add_argument("--refresh", action="store_true", help="ignore cached downloads")
     parser.add_argument("--max-age", type=float, default=6, help="hours a cached download stays fresh (default 6)")
+    parser.add_argument("--no-resources", action="store_true",
+                        help="skip building uBO's scriptlet and redirect resources (needs Node.js)")
     args = parser.parse_args()
 
     config = json.loads((ROOT / "config" / "lists.json").read_text())
@@ -1028,6 +1071,8 @@ def main():
 
     manifest = {"generated_at": generated_at, "engine": ENGINE, "environment": environment, "presets": {}}
     args.out.mkdir(parents=True, exist_ok=True)
+    if not args.no_resources:
+        manifest["resources"] = build_resources(config["ublock"], fetcher, args.out / "resources")
     scratch_dir = ROOT / "build" / "scratch"
     scratch_dir.mkdir(parents=True, exist_ok=True)
 
