@@ -1,6 +1,6 @@
 # uBlock Origin defaults: conversion report
 
-Built 2026-10-26 17:28 UTC for adblock 0.13.3, as built into Ladybird's LibWeb/ContentBlocker.
+Built 2026-10-26 18:47 UTC for adblock 0.13.3, as built into Ladybird's LibWeb/ContentBlocker.
 
 249,575 of 265,860 upstream filters kept (93.9%), written as 251,055 filters.
 Counts are per upstream filter line, after uBO's preprocessor. One upstream line can become several filters (a hosts-file line with several names, or a `$denyallow` filter and its exceptions).
@@ -25,13 +25,13 @@ Counts are per upstream filter line, after uBO's preprocessor. One upstream line
 |---|---:|---|
 | `needs-engine:scriptlets` | 10,352 | ublock-filters: `tv.youtube.com##+js(trusted-replace-xhr-response, '"adPlacements"', '"no_ads"', /playlist\?list=\|\/player(?:\?.+)?$\|watch\?[tv]=/)`<br>ublock-filters: `www.youtube.com##+js(trusted-replace-xhr-response, /"adPlacements.*?([A-Z]"\}\|"\}{2\,4})\}\]\,/, , /playlist\?list=\|\/player(?:\?.+)?$\|watch\?[tv]=/)`<br>ublock-filters: `www.youtube.com##+js(trusted-replace-xhr-response, /"adPlacements.*?("adSlots"\|"adBreakHeartbeatParams")/gms, $1, /\/player(?:\?.+)?$/)` |
 | `needs-engine:popup` | 3,149 | ublock-filters: `\|\|bit.ly^$popup,domain=eurogamer.net`<br>ublock-filters: `*$popup,domain=clik.pw,3p`<br>ublock-filters: `*$popunder,domain=realgfporn.com` |
-| `needs-engine:procedural` | 790 | ublock-filters: `youtube.com##.ytlr-horizontal-list-renderer__items > .yt-virtual-list__container > .yt-virtual-list__item--visible.yt-virtual-list__item--selected.yt-virtual-list__item:has-text(Ad)`<br>ublock-filters: `sport1.de##strong:has-text(/anzeige/i)`<br>ublock-filters: `economictimes.indiatimes.com##.active > ul > li:has-text(Ad:)` |
+| `needs-engine:procedural` | 789 | ublock-filters: `youtube.com##.ytlr-horizontal-list-renderer__items > .yt-virtual-list__container > .yt-virtual-list__item--visible.yt-virtual-list__item--selected.yt-virtual-list__item:has-text(Ad)`<br>ublock-filters: `sport1.de##strong:has-text(/anzeige/i)`<br>ublock-filters: `economictimes.indiatimes.com##.active > ul > li:has-text(Ad:)` |
 | `inert:redirect-rule` | 476 | ublock-filters: `*$script,domain=aranzulla.it,redirect-rule=noopjs`<br>ublock-filters: `\|\|indiatimes.com^$image,redirect-rule=1x1.gif`<br>ublock-filters: `*$image,redirect-rule=1x1.gif,domain=web.de` |
 | `inert:to` | 306 | ublock-filters: `/^https:\/\/[-0-9a-z]{5,}\.(?:com\|org)\/\d{1,2}\/[0-9a-f]{32}$/$script,3p,match-case,to=com\|org`<br>ublock-filters: `/\/[0-9a-f]{32}\.js/$script,xhr,3p,to=com,from=bembed.net\|embedv.net\|listeamed.net\|moflix-stream.day\|moflix-stream.fans\|v6embed.xyz\|vid-guard.com`<br>ublock-filters: `/\.\d{1,2}\.[0-9a-f]{32}\.js$/$script,3p,match-case,to=js.txxx.tube` |
 | `inert:removeparam` | 269 | ublock-filters: `\|\|fastlane.rubiconproject.com^$removeparam,domain=aternos.org`<br>ublock-filters: `\|\|htlb.casalemedia.com^$removeparam=r,domain=aternos.org`<br>ublock-filters: `\|\|clips-manifests-aka.warnermediacdn.com^$xhr,removeparam=caid,domain=nba.com` |
 | `needs-engine:url-rewrite` | 261 | ublock-filters: `\|\|idnes.cz/_servix/media/video.aspx$script,uritransform=/reklama=1/reklama=0/`<br>ublock-filters: `\|\|meong.club/go/?aHR0c*$doc,urlskip=/\/go\/\?(aHR0c.+)/ -base64`<br>ublock-filters: `\|\|vw.mangaz.com/navi/$doc,uritransform=/navi(\/\d+(?:\/i:\d+)?)/virgo\/view\$1/` |
 | `needs-engine:html-filtering` | 161 | ublock-filters: `wetteronline.*##^script:has-text(runCount)`<br>ublock-filters: `gamestorrents.*,gogoanimes.*,limetorrents.*,piratebayz.*##^script:has-text(AaDetector)`<br>ublock-filters: `animepahe.*,kwik.*##^script:has-text('shift')` |
-| `needs-engine:dom-actions` | 98 | ublock-filters: `dvdgayonline.com###clickfakeplayer:remove-attr(href)`<br>ublock-filters: `vk.sportsbull.jp##.hidden-by-ima:remove-class(hidden-by-ima)`<br>ublock-filters: `flickr.com##.search-photos-unified-page-view .desktop-nav-ad:remove-class(desktop-nav-ad)` |
+| `needs-engine:dom-actions` | 99 | ublock-filters: `dvdgayonline.com###clickfakeplayer:remove-attr(href)`<br>ublock-filters: `vk.sportsbull.jp##.hidden-by-ima:remove-class(hidden-by-ima)`<br>ublock-filters: `flickr.com##.search-photos-unified-page-view .desktop-nav-ad:remove-class(desktop-nav-ad)` |
 | `inert:csp` | 89 | ublock-filters: `\|\|rule34.top^$csp=sandbox allow-forms allow-same-origin allow-scripts allow-modals allow-orientation-lock allow-pointer-lock allow-presentation allow-top-navigation`<br>ublock-filters: `\|\|feet9.com^$csp=worker-src 'none';`<br>ublock-filters: `\|\|hotscope.tv^$csp=script-src 'self' 'unsafe-inline' 'unsafe-eval' data: https://disqus.com *.disqus.com *.google-analytics.com *.disquscdn.com` |
 | `generic-exception-applied` | 57 | ublock-filters: `#@#.reklama`<br>ublock-filters: `#@#[class^="div-gpt-ad"]`<br>ublock-filters: `#@#[id^="div-gpt-ad"]` |
 | `cancelled-by-generic-exception` | 54 | ublock-filters: `whathifi.com##.adunit`<br>ublock-filters: `timesnownews.com,timesnowhindi.com,timesnowmarathi.com,zoomtventertainment.com##.adunit`<br>ublock-filters: `gmx.*##.ad-content` |
@@ -106,4 +106,4 @@ What a scriptlet engine would need first, by number of filters using each script
 | `set-cookie` | 51 |
 | `json-prune-fetch-response` | 48 |
 
-Reasons are explained in docs/gap-analysis.md. Every dropped line is in `dist/<preset>/dropped/<id>.tsv` after a build.
+Reasons are explained in docs/gap-analysis.md. Every dropped line is in `dist*/<preset>/dropped/<id>.tsv` after a build.

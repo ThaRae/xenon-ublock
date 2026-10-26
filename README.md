@@ -5,33 +5,42 @@ Ladybird browser with Helium's feature set) can ship it on by default the way [H
 uBlock Origin.
 
 Ladybird has no WebExtensions, so uBlock Origin (uBO) cannot run in it. Ladybird does have a built-in content blocker:
-Brave's `adblock` crate, which reads most of uBO's filter syntax. This repository turns uBO's default filter lists
-into lists that blocker applies correctly. It fetches them, evaluates uBO's preprocessor, translates the syntax the
-engine reads differently, drops what it cannot apply (with a report saying why), and checks the result against the
-engine itself.
+Brave's `adblock` crate, which reads most of uBO's filter syntax. This repository has two parts:
+
+- **Lists** (`tools/build.py`): uBO's default filter lists, fetched, preprocessed, translated where the engine reads
+  uBO's syntax differently, and trimmed to what the engine applies (with a report saying why), checked against the
+  engine itself.
+- **Engine patches** (`engine/`): a Ladybird patch series that adds what uBO needs beyond Ladybird's blocker:
+  scriptlets, procedural cosmetic filters, `$redirect` surrogates, `$removeparam`, popup blocking, CNAME uncloaking,
+  and an element picker, with uBO's own scriptlets and surrogates (`tools/build_resources.mjs`).
+  `integration/xenon/` is the change that makes Xenon build with them.
 
 - [docs/gap-analysis.md](docs/gap-analysis.md): which uBO features work on Ladybird as-is, which this repo
-  translates, and which need engine work.
+  translates, and which the engine patches add.
+- [engine/README.md](engine/README.md): the patches, and how to use, test and rebase them.
 - [docs/reports/](docs/reports/): what was kept, translated and dropped in the 2026-10-26 build.
 
 ## Status
 
-What blocks today, with these lists loaded:
+| | Stock Ladybird (`--engine ladybird`) | With `engine/patches` (`--engine xenon`) |
+|---|---|---|
+| uBO's default filters that take effect | 93.9% (`ubo`), 91.3% (`helium`) | 99.5% (`ubo`), 99.3% (`helium`) |
+| Network blocking, hiding, exceptions, `:style()` | Yes | Yes |
+| Scriptlets (`##+js`): YouTube ads, anti-adblock walls | No | Yes, with uBO 1.75.0's scriptlets; `trusted-*` only from uBO's own lists |
+| Procedural filters (`:has-text()`, `:upward()`, `:xpath()`, ...), `:remove()`, `:remove-attr()`, `:remove-class()` | No | Yes |
+| `$redirect` surrogates, `$redirect-rule` | Blocks without a surrogate | Yes |
+| `$removeparam` | No | Plain parameter names (adblock rejects regexes) |
+| `$popup` | No | `window.open()`, `_blank` links and forms, popups navigated later |
+| CNAME uncloaking | No | Yes, uBO's defaults, `$cname` exceptions |
+| Element picker | No | Block Element... in the context menu |
+| `$method` | No | Yes |
 
-- **Network requests**: ads, trackers, malware and badware from every list uBO enables by default. 93.9% of the
-  upstream filters in the `ubo` preset and 91.3% in the `helium` preset take effect.
-- **Element hiding**: site-specific, generic and entity (`example.*`) rules, exceptions, and `:style()`.
+Still not covered, even with the patches: `$csp`, `$header`, `$permissions`, `$replace`, `$urlskip`, HTML filtering,
+`:others()`/`:watch-attr()`, `$to` with positive domains, and WebSocket and worker requests (see the gap analysis).
 
-What needs engine work (details and sizes in the gap analysis):
-
-- **Scriptlets** (`##+js`), 10,352 of uBO's default filters. This is how uBO handles YouTube ads and most anti-adblock
-  walls, and is the largest gap.
-- **Surrogate resources** for `$redirect` (the request is blocked instead), `$removeparam` URL cleaning, `$csp`,
-  popup blocking (`$popup`), procedural cosmetic operators (`:has-text()` and friends), HTML filtering, and CNAME
-  uncloaking.
-- **Engine bugs** that this repo works around and that affect any list loaded into Ladybird directly: one
-  JavaScript-only regex silently disables every regex filter fused with it, regexes are lowercased (`\D` becomes
-  `\d`), `$domain=site.*` never matches, and `$to`/`$denyallow` filters are discarded.
+The lists also work around engine bugs that affect any list loaded into Ladybird directly: one JavaScript-only regex
+silently disables every regex filter fused with it, regexes are lowercased (`\D` becomes `\d`), `$domain=site.*`
+never matches, and `$to`/`$denyallow` filters are discarded.
 
 ## Using it
 
@@ -42,9 +51,11 @@ Requirements: Python 3.11+, a Rust toolchain, a C compiler, and a Ladybird check
 tools/build.py
 ```
 
-That fetches and converts both presets into `dist/` (downloads are cached for 6 hours in `build/cache/`). Options:
-`--preset ubo`, `--lang de --lang fr` (also build uBO's regional lists for those languages, as uBO does for the
-browser's locale), `--offline`, `--refresh`.
+That fetches and converts both presets into `dist/` (downloads are cached for 6 hours in `build/cache/`), and builds
+uBO's scriptlets and redirect surrogates into `dist/resources/` (needs Node.js; `--no-resources` skips it). Options:
+`--engine xenon` (lists for Ladybird with `engine/patches`, into `dist-xenon/`), `--preset ubo`, `--lang de --lang
+fr` (also build uBO's regional lists for those languages, as uBO does for the browser's locale), `--offline`,
+`--refresh`.
 
 ```bash
 tools/verify.py
@@ -63,7 +74,11 @@ tools/e2e_xenon.py --app ../Xenon/Build/release/bin/Xenon.app
 ```
 
 That runs a built Xenon (or Ladybird) headless with a throwaway profile and a preset. It checks on a local test page
-that ad requests never reach the server and decoy ads are hidden, and runs a control with blocking off.
+that ad requests never reach the server and decoy ads are hidden, and runs a control with blocking off. With
+`--engine xenon`, it passes a `dist-xenon` preset the way Xenon does, trusted lists and resources included.
+
+For a Xenon built with `engine/patches`, `tools/e2e_engine.py` and `tools/e2e_cname.py` check each engine feature
+(see [engine/README.md](engine/README.md)).
 
 ## Presets
 
@@ -116,6 +131,22 @@ source, license and what was kept. `dist/` is not committed; build it, or publis
 
 ## Bundling and enabling in Xenon
 
+Xenon (from commit `578e2b1`) bundles the `helium` preset with `Meta/update-filter-lists.py` and passes it as
+`--content-blocker-list` arguments (`UI/FilterLists.cpp`), as described below.
+
+`integration/xenon/0001-Build-Ladybird-with-xenon-ublock-s-engine-patches.patch` takes it the rest of the way. Apply it
+to Xenon with `git am`, then run `Meta/update-filter-lists.py`:
+
+- `Meta/xenon.py` builds Ladybird from `Build/ladybird-patched`, which `engine/apply.py` makes from the `ladybird`
+  submodule (left as it is) and refreshes when the patches change. It finds this repo through `XENON_UBLOCK_DIR`,
+  `./xenon-ublock` (a submodule there works for CI) or `../xenon-ublock`. The first build after it reconfigures and
+  rebuilds everything.
+- `Meta/update-filter-lists.py` converts the lists for the patched engine, puts uBO's own lists in
+  `trusted-lists/` and uBO's resources in `resources/`. `UI/FilterLists.cpp` passes them as
+  `--trusted-content-blocker-list` and `--content-blocker-resources`.
+- Block Element... in the context menu ends in a dialog that shows the filter for the picked element, to edit and
+  add to the custom filters (`UI/ElementPicker.cpp`).
+
 Ladybird already has everything needed to load these lists. What Xenon has to decide is how they reach the profile.
 Turning ad blocking on is `Settings::set_content_blocker_enabled(true)`, which is what Ladybird's own welcome page
 sends (`setContentBlockerEnabled`). Lists only take effect while that is on, and the per-site toggle
@@ -143,8 +174,8 @@ in the list registry), so they cannot be toggled one by one.
 
 ### Later: subscribe by URL, for daily updates
 
-Publish `dist/` from CI on a schedule (GitHub Pages or release assets of this repo; that needs a remote, which this
-repo does not have yet). Xenon then registers each list with `Settings::add_content_blocker_list(name, url)`. Ladybird
+Publish `dist/` (or `dist-xenon/`) from CI on a schedule, for example as release assets of this repo on
+git.avx512.dev. Xenon then registers each list with `Settings::add_content_blocker_list(name, url)`. Ladybird
 lists it under custom subscriptions in `about:settings`, and re-downloads it every 24 hours while filter list updates
 are on (`setFilterListUpdatesEnabled`, which Ladybird's welcome page turns on together with blocking). To block
 before the first download, and offline, Xenon can seed each subscription's file
@@ -157,9 +188,12 @@ whose file exists. Point subscriptions at the converted files, never at uBO's ra
 
 ## Licensing
 
-This repository's code is GPL-3.0-or-later (see `LICENSE`), like uBlock Origin. It contains no uBO code; it
-reimplements uBO's list semantics (preprocessor, hostname rules, generic exceptions) from uBO's documentation and
-source.
+This repository's code is GPL-3.0-or-later (see `LICENSE`), like uBlock Origin. It reimplements uBO's list semantics
+(preprocessor, hostname rules, generic exceptions) from uBO's documentation and source. The engine patches in
+`engine/patches/` modify Ladybird and are BSD-2-Clause, like Ladybird, so they can go upstream.
+
+`dist/resources/ublock-resources.json` is built from uBlock Origin's source (its scriptlets and the files in
+`web_accessible_resources`), and is GPL-3.0 like uBO; uBO's license is copied next to it.
 
 The lists it produces are modified versions of third-party lists, each under its own license, recorded per list in
 `config/lists.json`, in `dist/manifest.json`, and in each output file's header:
@@ -183,11 +217,16 @@ leave it out (`plowe-0` is 3,563 hostnames, most of which EasyList and EasyPriva
 ## Layout
 
 ```
-config/lists.json        presets, !#if environment, licenses
-tools/build.py           fetch, preprocess, translate, report
+config/lists.json        presets, !#if environment, licenses, the uBO release for resources
+tools/build.py           fetch, preprocess, translate, report (--engine ladybird | xenon)
+tools/build_resources.mjs  uBO's scriptlets and redirect surrogates as adblock resources
 tools/verify.py          check the output against Ladybird's real engine
 tools/e2e_xenon.py       check the output in a built Xenon
-probe/                   per-line parser check, pinned to Ladybird's adblock version
+tools/e2e_engine.py      check the engine patches' features in a patched Xenon
+tools/e2e_cname.py       check CNAME uncloaking, with a local DNS server
+engine/                  the Ladybird patch series, apply.py, and its README
+integration/xenon/       the Xenon change that builds with the patches
+probe/                   per-line parser check, pinned to Ladybird's adblock version and features
 harness/engine_check.c   links Ladybird's content blocker crate
 tests/                   engine behavior and preset expectations
 docs/                    gap analysis, build reports

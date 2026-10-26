@@ -59,6 +59,9 @@ results.blockedScript = "pending";
 <div class="overlay" id="overlay">Overlay</div>
 <a class="clicky" id="clicky" href="#" onclick="return false">link</a>
 <iframe id="frame" src="/frame.html?utm_source=e2e&page=1"></iframe>
+<div id="banner-ad">id</div>
+<div class="ad-slot top">classes</div>
+<section id="cards"><div class="card"><span>first</span></div><div class="card"><span id="second-span-marker-free">second</span></div></section>
 <script>
 (async () => {
     await new Promise(resolve => document.getElementById("frame").addEventListener("load", resolve, { once: true }));
@@ -76,6 +79,23 @@ results.blockedScript = "pending";
     results.fetchURLSeenByServer = echo;
     results.postBlocked = await fetch("/method-test", { method: "POST", body: "x" }).then(() => false, () => true);
     results.getAllowed = await fetch("/method-test").then(() => true, () => false);
+
+    // The element picker's filters (internals exposes the generator; the picker UI sends the same thing over IPC).
+    const pick = element => internals.cosmeticFilterForElement(element);
+    const secondSpan = document.querySelectorAll(".card span")[1];
+    secondSpan.removeAttribute("id");
+    const picked = { id: pick(document.getElementById("banner-ad")), classes: pick(document.querySelector(".ad-slot")), path: pick(secondSpan) };
+    const selectsOnly = (filter, element) => {
+        const selector = filter.slice(filter.indexOf("##") + 2);
+        const matches = document.querySelectorAll(selector);
+        return matches.length === 1 && matches[0] === element;
+    };
+    results.picker = {
+        ...picked,
+        idSelectsOnlyIt: selectsOnly(picked.id, document.getElementById("banner-ad")),
+        classesSelectOnlyIt: selectsOnly(picked.classes, document.querySelector(".ad-slot")),
+        pathSelectsOnlyIt: selectsOnly(picked.path, secondSpan),
+    };
 
     await new Promise(resolve => setTimeout(resolve, 500));
     const display = id => { const e = document.getElementById(id); return e ? getComputedStyle(e).display : "removed"; };
@@ -155,7 +175,7 @@ def main():
         (profile / "config" / "Settings.json").write_text(json.dumps({"contentBlockers": {"enabled": True}}))
         # --allow-popups turns off Ladybird's own popup blocker, which stops every popup the page opens without a user
         # gesture, so the popup checks see only the content blocker.
-        command = [str(executable), "--headless=text", "--allow-popups", "--profile-path", str(profile),
+        command = [str(executable), "--headless=text", "--allow-popups", "--expose-internals-object", "--profile-path", str(profile),
                    "--content-blocker-list", str(work / "untrusted.txt"),
                    "--trusted-content-blocker-list", str(work / "trusted.txt"),
                    "--content-blocker-resources", str(args.resources), url]
@@ -196,6 +216,9 @@ def main():
         "$popup blocked a popup navigated after opening": "/late-popup-ad.html" not in seen,
         "$method=post blocked the POST": report["postBlocked"] is True and "POST /method-test" not in seen,
         "$method=post left the GET": report["getAllowed"] is True,
+        "picker: an element with an id gives its id": report["picker"]["id"] == "127.0.0.1###banner-ad" and report["picker"]["idSelectsOnlyIt"],
+        "picker: unique classes give tag and classes": report["picker"]["classes"] == "127.0.0.1##div.ad-slot.top" and report["picker"]["classesSelectOnlyIt"],
+        "picker: otherwise the shortest path that selects only it": report["picker"]["path"].startswith("127.0.0.1##") and report["picker"]["path"].endswith("div:nth-of-type(2) > span") and report["picker"]["pathSelectsOnlyIt"],
     }
     failed = [name for name, ok in checks.items() if not ok]
     for name, ok in checks.items():

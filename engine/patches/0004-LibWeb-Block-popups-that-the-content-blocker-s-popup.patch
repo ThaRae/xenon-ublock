@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Ryan <ryan@esterlines.com>
 Date: Mon, 26 Oct 2026 14:29:18 -0400
-Subject: [PATCH 4/4] LibWeb: Block popups that the content blocker's $popup
+Subject: [PATCH 4/6] LibWeb: Block popups that the content blocker's $popup
  filters match
 
 Choosing a navigable now receives the URL a new top-level traversable

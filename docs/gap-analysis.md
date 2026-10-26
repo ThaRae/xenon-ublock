@@ -10,22 +10,28 @@ they start with `adblock/`, which means `~/.cargo/registry/src/*/adblock-0.13.3/
 
 ## Summary
 
-| uBO feature | Ladybird today | With this repo | Engine work needed |
+| uBO feature | Stock Ladybird | With the lists (`--engine ladybird`) | With `engine/patches` (`--engine xenon`) |
 |---|---|---|---|
-| Static network filtering | Most syntax and options | 94% of uBO's default filters load and take effect | `$redirect` resources, `$removeparam`, `$csp`, `$method`, `$to`, entity domains, popups, CNAME |
-| Cosmetic filtering (hiding) | Specific, generic, entity, exceptions, `:style()` | Generic `#@#` exceptions and `:remove()` translated | Procedural operators, `:remove-attr/-class` |
-| Scriptlet injection (`##+js`) | Parsed, never injected | Dropped (10,352 filters in uBO's defaults) | Resources plus document-start injection: the biggest gap |
-| Redirect resources | `$redirect` blocks without a surrogate; `$redirect-rule` inert | Kept as blocking filters | Load resources; serve `BlockerResult::redirect` |
-| HTML filtering (`##^`) | Not supported | Dropped | Response-stream filtering (uBO only does this on Firefox) |
-| Element picker | None. Custom filters are stored and applied | Nothing to do here | Picker UI in Xenon plus a small WebContent hook |
-| Per-site toggle | Yes, per exact host | Nothing to do here | Optional: subdomain matching, uBO's per-site switches |
-| CNAME uncloaking (Helium) | No | Dropped `$cname` exceptions | DNS-aware re-check in RequestServer |
-| List preprocessing (`!#if`, `!#include`, hosts files) | No | Done at build time | Only needed if raw uBO lists are subscribed to directly |
+| Static network filtering | Most syntax and options | 94% of uBO's default filters take effect | 99.5%. Adds `$redirect` surrogates, `$redirect-rule`, `$removeparam` (plain names), `$method` |
+| Cosmetic filtering (hiding) | Specific, generic, entity, exceptions, `:style()` | Generic `#@#` exceptions and `:remove()` translated | Procedural operators (`:has-text()`, `:upward()`, `:xpath()`, `:matches-css()`, ...), `:remove()`, `:remove-attr()`, `:remove-class()` |
+| Scriptlet injection (`##+js`) | Parsed, never injected | Dropped (10,352 filters in uBO's defaults) | uBO 1.75.0's scriptlets, at document start, in every frame; `trusted-*` only from uBO's own lists |
+| Redirect resources | `$redirect` blocks without a surrogate | Kept as blocking filters | uBO's 47 surrogates, served with CORS headers |
+| Popups (`$popup`) | Option unknown | Dropped | `window.open()`, `_blank` links and forms, popups navigated after opening |
+| HTML filtering (`##^`) | Not supported | Dropped | Still dropped |
+| Element picker | None. Custom filters are stored and applied | Nothing to do here | Block Element... in the context menu; Xenon confirms the filter in a dialog |
+| Per-site toggle | Yes, per exact host | Nothing to do here | Unchanged (applies to all of the above) |
+| CNAME uncloaking (Helium) | No | Dropped `$cname` exceptions | RequestServer reports aliases, WebContent decides with uBO's defaults; `$cname` exceptions |
+| List preprocessing (`!#if`, `!#include`, hosts files) | No | Done at build time | Done at build time |
 
-So what blocks today, with this repo's lists: ad, tracker and malware **requests** from all of uBO's default lists
-(EasyList, EasyPrivacy, uBO's own lists, URLhaus, Peter Lowe's), and **element hiding** with specific, generic and
-`:style()` rules. What does not: anything that needs JavaScript in the page (scriptlets, which are how uBO handles
-YouTube ads and most anti-adblock walls), surrogate scripts, URL cleaning, popups, and CNAME uncloaking.
+With the lists alone, what blocks is ad, tracker and malware **requests** from all of uBO's default lists, and
+**element hiding** with specific, generic and `:style()` rules. With the engine patches, most of what uBO does on
+Chromium also works: scriptlets (how uBO handles YouTube ads and most anti-adblock walls), procedural filters,
+surrogates, URL cleaning, popup blocking, CNAME uncloaking and the element picker. [engine/README.md](../engine/README.md)
+describes the patches and how they are tested. What remains is listed under
+[Still not covered](#still-not-covered).
+
+The sections below describe the stock engine, which the lists are converted for by default, and say for each gap
+what the patches do about it.
 
 ## How Ladybird's blocker works
 
@@ -150,7 +156,9 @@ host.
 
 ## Scriptlet injection
 
-**Not possible today; the largest gap.** `##+js(…)` filters parse, and `Engine::url_cosmetic_resources()` returns
+**With the patches:** done as described below: `tools/build_resources.mjs` turns uBO 1.75.0's scriptlets into adblock resources, trusted lists are parsed with uBO's trust permission, and the page script runs next to WebDriver BiDi's preload scripts (patches `0001`, `0003`).
+
+**Not possible on stock Ladybird; the largest gap.** `##+js(…)` filters parse, and `Engine::url_cosmetic_resources()` returns
 their code in `injected_script`, but only if resources were loaded, and Ladybird neither loads any nor has a place to
 inject them. 10,352 of uBO's default filters (22,894 in Helium's preset) are scriptlets. They are uBO's main tool for
 YouTube and Twitch ads (`json-prune`, `trusted-replace-xhr-response`), anti-adblock walls (`set`, `aopr`, `acs`), and
@@ -168,6 +176,8 @@ What it would take:
 
 ## Redirect resources
 
+**With the patches:** surrogates come from uBO's `web_accessible_resources` and are served from `ResourceLoader` (patch `0002`); `$redirect-rule` works.
+
 `$redirect=` filters both block and redirect. Ladybird only blocks, so the page gets a failed request instead of a
 neutered surrogate (`noopjs`, `google-ima.js`, `googletagmanager_gtm.js`, a 1×1 GIF). That can break pages that the
 surrogate exists to keep working. `$redirect-rule=` does nothing. `build.py` keeps `$redirect=` filters (they still
@@ -177,6 +187,8 @@ What it would take: the same resources as scriptlets, then, in `ResourceLoader`,
 (a `data:` URL) as the response body instead of failing the request.
 
 ## Element picker
+
+**With the patches:** done with Ladybird's DevTools node picker rather than an in-page overlay (patch `0006`); Xenon shows the filter in a dialog before saving it.
 
 uBO's picker highlights the element under the pointer, proposes a cosmetic filter (and network filters for the
 element's resources), previews it, and saves it to "My filters". Ladybird has the back half: custom filters are
@@ -200,6 +212,8 @@ trusted-site directives cover subdomains), and uBO's other per-site switches (no
 large media, no remote fonts, no JavaScript) and dynamic filtering rules have no counterpart.
 
 ## CNAME uncloaking
+
+**With the patches:** done without a filter engine in RequestServer: RequestServer reports an alias and waits, and WebContent, which has the filters and the per-site toggle, answers (patch `0005`).
 
 Helium's fork adds a `chrome.dns.resolve()` with a `canonical_name` flag so uBO can do on Chromium what it does on
 Firefox: resolve each request's host, and if it is a CNAME alias (a first-party subdomain pointing at a tracker), run
@@ -242,6 +256,23 @@ lines, so the output needs none of this.
 | Logger | No (blocked requests are logged with `dbgln`) |
 | Dynamic filtering, "My rules" | No |
 | Regional lists by locale | Not automatic; `build.py --lang` builds uBO's regional lists for given languages |
+
+## Still not covered
+
+Even with the engine patches:
+
+| Feature | Why | Size (Helium preset) |
+|---|---|---|
+| `$csp`, `$inline-script`, `$inline-font` | Needs CSP directives appended to document responses (`Engine::get_csp_directives()` has them) | 121 filters |
+| `$to` with positive domains (`$doc,to=com`), and `$to` the lists cannot rewrite | adblock 0.13.3 discards `$to` filters; needs a newer adblock or a builder change | 361 |
+| `$urlskip`, `$uritransform`, `$header`, `$permissions`, `$replace`, `$ipaddress` | Each needs its own hook (URL rewriting before navigation, response headers, response bodies, IP addresses) | about 390 |
+| HTML filtering (`##^`) | Response-stream filtering | 193 |
+| `:others()`, `:watch-attr()`, `:matches-media()`, `:matches-prop()` | adblock does not parse them as procedural operators, so they never reach the runtime | 884 |
+| Regex `$removeparam`, `$removeparam` exceptions, bare `$removeparam` | adblock rejects them | 216 |
+| `$popunder` | Needs a check on the opener's navigation, not the popup's | 25 |
+| WebSocket connections and worker fetches | Ladybird does not consult the content blocker for them at all | (all filters) |
+| Isolated world for scriptlets and procedural filters | Ladybird has no isolated worlds; the page can see and tamper with them | |
+| `$document` strict-blocking page with "proceed" | UI work: Ladybird shows an error page | |
 
 ## Verification
 

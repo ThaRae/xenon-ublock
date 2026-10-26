@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Ryan <ryan@esterlines.com>
 Date: Mon, 26 Oct 2026 14:29:04 -0400
-Subject: [PATCH 1/4] LibWeb+LibWebView: Give the content blocker uBlock
+Subject: [PATCH 1/6] LibWeb+LibWebView: Give the content blocker uBlock
  Origin's resources
 
 The content blocker now builds its engine from three parts instead of
@@ -1375,5 +1375,3 @@ index 2daae248..092dd825 100644
  
      set_autoplay_settings(Web::PageId page_id, Web::HTML::AutoplayPolicy policy, Vector<Utf16String> allowlist) =|
      set_preferred_color_scheme(Web::PageId page_id, Web::CSS::PreferredColorScheme color_scheme) =|
-
-base-commit: c6f7e21193dbb39ef8207d7d856d51be1aeecf17

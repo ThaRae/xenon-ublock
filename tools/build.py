@@ -36,7 +36,43 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-ENGINE = "adblock 0.13.3, as built into Ladybird's LibWeb/ContentBlocker"
+
+
+@dataclass(frozen=True)
+class EngineProfile:
+    """What the content blocker the lists are for can apply."""
+    name: str
+    description: str
+    probe_features: tuple[str, ...]
+    scriptlets: bool  # ##+js(), with uBlock Origin's resources
+    procedural: bool  # :has-text(), :upward(), ... (PROCEDURAL_OPERATORS_IN_ENGINE)
+    dom_actions: bool  # :remove(), :remove-attr(), :remove-class()
+    redirect_rule: bool  # $redirect-rule= (surrogates for requests other filters block)
+    removeparam: bool  # $removeparam= with a plain parameter name
+    method: bool  # $method=
+    popup: bool  # $popup
+    cname: bool  # $cname exceptions (CNAME uncloaking)
+
+
+ENGINES = {
+    "ladybird": EngineProfile(
+        "ladybird", "adblock 0.13.3, as built into Ladybird's LibWeb/ContentBlocker", (),
+        scriptlets=False, procedural=False, dom_actions=False, redirect_rule=False, removeparam=False, method=False,
+        popup=False, cname=False),
+    "xenon": EngineProfile(
+        "xenon", "Ladybird's content blocker with xenon-ublock's engine/patches (adblock 0.13.3 with css-validation, "
+                 "uBlock Origin's resources)", ("css-validation",),
+        scriptlets=True, procedural=True, dom_actions=True, redirect_rule=True, removeparam=True, method=True,
+        popup=True, cname=True),
+}
+engine = ENGINES["ladybird"]
+
+# The procedural operators the patched engine's runtime (procedural.js) evaluates.
+PROCEDURAL_OPERATORS_IN_ENGINE = {"has-text", "min-text-length", "matches-attr", "matches-path", "upward", "xpath",
+                                  "matches-css", "matches-css-before", "matches-css-after", "remove-attr",
+                                  "remove-class"}
+# uBlock Origin trusts its own lists to use trusted-* scriptlets (the trustedListPrefixes setting, "ublock-").
+TRUSTED_LIST_PREFIXES = ("ublock-",)
 USER_AGENT = "xenon-ublock/0.1 (filter list converter for Ladybird)"
 
 # Limits from ladybird/Libraries/LibWebView/Application.cpp.
@@ -538,13 +574,23 @@ def translate_network_filter(line: str) -> Outcome:
             translated.append("~1p" if negated else "1p")
             notes.append("strict1p-to-1p")
         elif name == "redirect-rule":
-            return Outcome(None, "inert:redirect-rule")
+            if not engine.redirect_rule:
+                return Outcome(None, "inert:redirect-rule")
+            translated.append(option)
         elif name == "removeparam" or name == "queryprune":
-            return Outcome(None, "inert:removeparam")
+            if not engine.removeparam:
+                return Outcome(None, "inert:removeparam")
+            translated.append(option if name == "removeparam" else "removeparam" + option.lstrip("~")[len("queryprune"):])
         elif name == "csp":
             return Outcome(None, "inert:csp")
         elif name == "method":
-            return Outcome(None, "inert:method")
+            if not engine.method:
+                return Outcome(None, "inert:method")
+            translated.append(option)
+        elif name == "popup" and engine.popup and not negated:
+            translated.append(option)
+        elif name == "cname" and engine.cname and exception and not negated:
+            translated.append(option)
         elif name in UNSUPPORTED_OPTIONS:
             return Outcome(None, UNSUPPORTED_OPTIONS[name])
         elif name in ENGINE_OPTIONS:
@@ -570,8 +616,9 @@ def translate_network_filter(line: str) -> Outcome:
     return Outcome(result, None, notes, to_entries=to_entries or None)
 
 
-def selector_is_balanced(selector: str) -> bool:
-    """Rejects selectors that could swallow the rules after them in the engine's generated style sheet."""
+def selector_is_balanced(selector: str, allow_braces: bool = False) -> bool:
+    """Rejects selectors that could swallow the rules after them in the engine's generated style sheet. Procedural
+    arguments may hold regexes ({40,}) and text (;), which never reach the style sheet: allow_braces lets them through."""
     depth_round = depth_square = 0
     quote = None
     i = 0
@@ -593,7 +640,7 @@ def selector_is_balanced(selector: str) -> bool:
             depth_square += 1
         elif character == "]":
             depth_square -= 1
-        elif character in "{};":
+        elif character in "{};" and not allow_braces:
             return False
         if depth_round < 0 or depth_square < 0:
             return False
@@ -617,7 +664,7 @@ def translate_cosmetic(line: str, marker_match: re.Match) -> Outcome:
         return Outcome(None, "needs-engine:scriptlets")  # AdGuard JavaScript rules
     if "$" in marker:
         return Outcome(None, "adguard-css-injection")
-    if body.startswith("+js("):
+    if body.startswith("+js(") and not engine.scriptlets:
         return Outcome(None, "needs-engine:scriptlets")
     if body.startswith("^"):
         return Outcome(None, "needs-engine:html-filtering")
@@ -629,7 +676,19 @@ def translate_cosmetic(line: str, marker_match: re.Match) -> Outcome:
     exception = "@" in marker
     if "?" in marker:
         notes.append("extended-marker")
+        if engine.procedural:
+            # #?# reads ABP's names for procedural operators; the patched engine knows uBO's.
+            for abp_name in (":-abp-contains(", ":contains("):
+                if abp_name in body:
+                    body = body.replace(abp_name, ":has-text(")
+                    notes.append("abp-contains-to-has-text")
     marker = "#@#" if exception else "##"
+
+    if body.startswith("+js("):
+        # Only reached when the engine runs scriptlets. Generic ones are rejected, as in uBO.
+        if not hosts:
+            return Outcome(None, "generic-scriptlet")
+        return Outcome(hosts + marker + body, None, notes)
 
     # Hostnames: uBO accepts *##, which is generic. Regex hostnames are unsupported.
     entries = [entry.strip() for entry in hosts.split(",") if entry.strip()] if hosts else []
@@ -666,7 +725,12 @@ def translate_cosmetic(line: str, marker_match: re.Match) -> Outcome:
             body = selector + ":remove()"
         else:
             body = f"{selector}:style({declarations})"
-    if body.endswith(":remove()"):
+    removes = body.endswith(":remove()")
+    if removes and engine.dom_actions:
+        if generic:
+            return Outcome(None, "generic-action")
+        body = body[: -len(":remove()")]
+    elif removes:
         body = body[: -len(":remove()")]
         notes.append("remove-to-hide")
     else:
@@ -684,17 +748,25 @@ def translate_cosmetic(line: str, marker_match: re.Match) -> Outcome:
         selector = selector.replace(":-abp-has(", ":has(")
         notes.append("abp-has-to-has")
     unquoted = strip_quoted(selector)
-    procedural = PROCEDURAL.search(unquoted)
-    if procedural:
-        if procedural.group(1) in ("remove-attr", "remove-class"):
+    operators = {match.group(1) for match in PROCEDURAL.finditer(unquoted)}
+    if operators:
+        dom_actions = operators & {"remove-attr", "remove-class"}
+        if dom_actions and not engine.dom_actions:
             return Outcome(None, "needs-engine:dom-actions")
-        return Outcome(None, "needs-engine:procedural")
+        if operators - {"remove-attr", "remove-class"} and not engine.procedural:
+            return Outcome(None, "needs-engine:procedural")
+        if operators - PROCEDURAL_OPERATORS_IN_ENGINE:
+            return Outcome(None, "needs-engine:procedural-operator")
+        if generic:
+            return Outcome(None, "generic-action")
     if "[-ext-" in unquoted:
         return Outcome(None, "needs-engine:procedural")
-    if not selector or not selector_is_balanced(selector):
+    if not selector or not selector_is_balanced(selector, allow_braces=bool(operators) and engine.procedural):
         return Outcome(None, "malformed-selector")
 
     result = ",".join(entries) + marker + selector
+    if removes and engine.dom_actions:
+        result += ":remove()"
     if style is not None:
         result += f":style({style})"
     return Outcome(result, None, notes)
@@ -734,13 +806,29 @@ def translate(line: str) -> list[Outcome] | None:
 
 
 def probe_binary() -> Path:
-    target = ROOT / "build" / "probe-target"
+    """The probe built with the features of the engine the lists are for."""
+    target = ROOT / "build" / ("probe-target" if not engine.probe_features else f"probe-target-{engine.name}")
     binary = target / "release" / "xenon-ublock-probe"
     sources = list((ROOT / "probe").rglob("*.rs")) + [ROOT / "probe" / "Cargo.toml"]
     if not binary.exists() or any(source.stat().st_mtime > binary.stat().st_mtime for source in sources):
-        subprocess.run(["cargo", "build", "--release", "--quiet", "--manifest-path", str(ROOT / "probe" / "Cargo.toml"),
-                        "--target-dir", str(target)], check=True)
+        command = ["cargo", "build", "--release", "--quiet", "--manifest-path", str(ROOT / "probe" / "Cargo.toml"),
+                   "--target-dir", str(target)]
+        if engine.probe_features:
+            command += ["--features", ",".join(engine.probe_features)]
+        subprocess.run(command, check=True)
     return binary
+
+
+def line_for_probe(line: str) -> str:
+    """The line as the patched engine hands it to adblock: it moves $popup filters and $cname exceptions to engines of
+    their own, without those options (ContentBlocker/Rust/src/lib.rs, SplitRules)."""
+    if not (engine.popup or engine.cname) or "$" not in line or COSMETIC_MARKER.search(line):
+        return line
+    pattern, _, options = line.rpartition("$")
+    kept = [option for option in options.split(",") if option not in ("popup", "cname")]
+    if len(kept) == len(options.split(",")):
+        return line
+    return pattern + ("$" + ",".join(kept) if kept else "")
 
 
 def probe(binary: Path, lines: list[str], scratch: Path) -> list[dict]:
@@ -760,22 +848,20 @@ def engine_drop_reason(verdict: dict) -> str | None:
     if kind == "n":
         if verdict["csp"]:
             return "inert:csp"
-        if verdict["removeparam"]:
+        if verdict["removeparam"] and not engine.removeparam:
             return "inert:removeparam"
-        if verdict["redirect"] == "rule":
+        if verdict["redirect"] == "rule" and not engine.redirect_rule:
             return "inert:redirect-rule"
-        if verdict["method"]:
+        if verdict["method"] and not engine.method:
             return "inert:method"
         if verdict["to"]:
             return "inert:to"
         if verdict["regex_error"]:
             return "regex-unsupported"
         return None
-    if verdict["script"]:
+    if verdict["script"] and not engine.scriptlets:
         return "needs-engine:scriptlets"
-    if verdict["action"] in ("remove-attr", "remove-class"):
-        return "needs-engine:dom-actions"
-    if verdict["action"] == "remove":
+    if verdict["action"] in ("remove", "remove-attr", "remove-class") and not engine.dom_actions:
         return "needs-engine:dom-actions"
     return None
 
@@ -890,6 +976,10 @@ def fetch_list(source: ListSource, fetcher: Fetcher, environment: dict) -> tuple
     raise FetchError(f"{source.id}: every URL failed: {'; '.join(errors)}")
 
 
+def is_trusted_list(list_id: str) -> bool:
+    return list_id.startswith(TRUSTED_LIST_PREFIXES)
+
+
 def build_list(source: ListSource, fetched, binary: Path, scratch: Path, cancelled: set[str]) -> BuiltList:
     """Translates one list and keeps what the engine will apply. `cancelled` holds the selectors that generic #@#
     exceptions anywhere in the preset turn off: the preset loads as one engine, so an exception in one list (usually
@@ -917,10 +1007,13 @@ def build_list(source: ListSource, fetched, binary: Path, scratch: Path, cancell
                 drop_reasons[index].append(outcome.reason)
             elif is_cancelled(outcome.line, cancelled):
                 drop_reasons[index].append("cancelled-by-generic-exception")
+            elif engine.scriptlets and not is_trusted_list(source.id) and re.search(r"#@?#\+js\(\s*trusted-", outcome.line):
+                # The engine only lets trusted lists use these.
+                drop_reasons[index].append("untrusted-scriptlet")
             else:
                 candidates.append((index, outcome))
 
-    verdicts = probe(binary, [outcome.line for _, outcome in candidates], scratch)
+    verdicts = probe(binary, [line_for_probe(outcome.line) for _, outcome in candidates], scratch)
     reasons = [engine_drop_reason(verdict) for verdict in verdicts]
     failed_groups = {}
     for (_, outcome), reason in zip(candidates, reasons):
@@ -982,7 +1075,7 @@ def list_header(built: BuiltList, license_info: dict | None, generated_at: str) 
         lines.append(f"! Homepage: {source.support_url}")
     lines += [
         f"! License: {license_text}" + (f" ({license_info['url']})" if license_info else ""),
-        f"! Converted by xenon-ublock on {generated_at} for {ENGINE}.",
+        f"! Converted by xenon-ublock on {generated_at} for {engine.description}.",
         f"! Kept {built.kept_upstream} of {built.input_filters} upstream filters, as {len(built.kept)} filters; the rest cannot take",
         "! effect in Ladybird. See report.md and dropped/ next to this file for what was dropped and why.",
         "!",
@@ -1005,7 +1098,7 @@ def write_report(path: Path, preset: str, preset_config: dict, built_lists: list
                 examples[reason].append(f"{built.source.id}: `{line}`")
 
     out = [f"# {preset_config['title']}: conversion report", "",
-           f"Built {generated_at} for {ENGINE}.", "",
+           f"Built {generated_at} for {engine.description}.", "",
            f"{total_kept:,} of {total_input:,} upstream filters kept ({100 * total_kept / max(total_input, 1):.1f}%), "
            f"written as {total_output:,} filters.",
            "Counts are per upstream filter line, after uBO's preprocessor. One upstream line can become several filters "
@@ -1048,7 +1141,11 @@ def main():
     parser.add_argument("--lang", action="append", default=[],
                         help="also build uBO's regional lists for this language code, as uBO does for the browser's "
                              "locale (repeatable)")
-    parser.add_argument("--out", type=Path, default=ROOT / "dist")
+    parser.add_argument("--engine", choices=ENGINES, default="ladybird",
+                        help="the content blocker the lists are for: Ladybird as it is (default), or Ladybird with "
+                             "engine/patches, which applies scriptlets, procedural filters, $redirect-rule, "
+                             "$removeparam, $popup and more")
+    parser.add_argument("--out", type=Path, help="output directory (default: dist, or dist-xenon for --engine xenon)")
     parser.add_argument("--cache", type=Path, default=ROOT / "build" / "cache")
     parser.add_argument("--offline", action="store_true", help="only use cached downloads")
     parser.add_argument("--refresh", action="store_true", help="ignore cached downloads")
@@ -1056,6 +1153,10 @@ def main():
     parser.add_argument("--no-resources", action="store_true",
                         help="skip building uBO's scriptlet and redirect resources (needs Node.js)")
     args = parser.parse_args()
+    global engine
+    engine = ENGINES[args.engine]
+    if args.out is None:
+        args.out = ROOT / ("dist" if engine.name == "ladybird" else f"dist-{engine.name}")
 
     config = json.loads((ROOT / "config" / "lists.json").read_text())
     presets = args.preset or list(config["presets"])
@@ -1069,7 +1170,8 @@ def main():
     binary = probe_binary()
     generated_at = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
-    manifest = {"generated_at": generated_at, "engine": ENGINE, "environment": environment, "presets": {}}
+    manifest = {"generated_at": generated_at, "engine": engine.name, "engine_description": engine.description,
+                "environment": environment, "presets": {}}
     args.out.mkdir(parents=True, exist_ok=True)
     if not args.no_resources:
         manifest["resources"] = build_resources(config["ublock"], fetcher, args.out / "resources")
@@ -1125,6 +1227,8 @@ def main():
                 "license": license_info["license"] if license_info else None,
                 "license_url": license_info["url"] if license_info else None,
                 "license_needs_review": not license_info or bool(license_info.get("review")),
+                # Pass trusted lists with --trusted-content-blocker-list (engine "xenon" only).
+                "trusted": is_trusted_list(source.id),
                 "upstream": {
                     "url": built.upstream_url,
                     "includes": built.includes,

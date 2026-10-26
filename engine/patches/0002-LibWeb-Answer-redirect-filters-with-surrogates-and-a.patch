@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Ryan <ryan@esterlines.com>
 Date: Mon, 26 Oct 2026 14:29:17 -0400
-Subject: [PATCH 2/4] LibWeb: Answer $redirect filters with surrogates, and
+Subject: [PATCH 2/6] LibWeb: Answer $redirect filters with surrogates, and
  apply $removeparam
 
 A request that a $redirect filter blocks is now answered with the

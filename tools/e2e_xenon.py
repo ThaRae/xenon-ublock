@@ -119,10 +119,10 @@ def start_server(host: str) -> tuple[socketserver.TCPServer, str]:
     return server, f"http://{authority}:{server.server_address[1]}/test.html"
 
 
-def run_browser(executable: Path, profile: Path, lists: list[Path], url: str, blocking: bool) -> str:
+def run_browser(executable: Path, profile: Path, lists: list[Path], url: str, blocking: bool, engine_arguments: list[str]) -> str:
     (profile / "config").mkdir(parents=True)
     (profile / "config" / "Settings.json").write_text(json.dumps({"contentBlockers": {"enabled": True}}))
-    command = [str(executable), "--headless=text", "--profile-path", str(profile)]
+    command = [str(executable), "--headless=text", "--profile-path", str(profile), *engine_arguments]
     for path in lists:
         command += ["--content-blocker-list", str(path)]
     if not blocking:
@@ -145,15 +145,28 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--app", type=Path, default=ROOT.parent / "Xenon" / "Build" / "release" / "bin" / "Xenon.app")
     parser.add_argument("--preset", default="helium")
-    parser.add_argument("--dist", type=Path, default=ROOT / "dist")
+    parser.add_argument("--dist", type=Path, help="built lists (default: dist, or dist-xenon with --engine xenon)")
+    parser.add_argument("--engine", choices=("ladybird", "xenon"), default="ladybird",
+                        help="xenon: the app has engine/patches; pass uBO's lists as trusted, and its resources")
     args = parser.parse_args()
+    if args.dist is None:
+        args.dist = ROOT / ("dist" if args.engine == "ladybird" else "dist-xenon")
 
     executable = args.app / "Contents" / "MacOS" / args.app.stem if args.app.suffix == ".app" else args.app
     if not executable.exists():
         raise SystemExit(f"{executable} does not exist; pass --app")
-    preset_list = args.dist / args.preset / "all.txt"
-    if not preset_list.exists():
-        raise SystemExit(f"{preset_list} does not exist; run tools/build.py first")
+    manifest = json.loads((args.dist / "manifest.json").read_text())
+    lists = manifest["presets"][args.preset]["lists"]
+    engine_arguments = []
+    if args.engine == "xenon":
+        # As Xenon would pass them: uBO's own lists as trusted, the rest as ordinary lists, and uBO's resources.
+        for entry in lists:
+            if entry["trusted"]:
+                engine_arguments += ["--trusted-content-blocker-list", str(args.dist / entry["file"])]
+        engine_arguments += ["--content-blocker-resources", str(args.dist / manifest["resources"]["file"])]
+        preset_lists = [args.dist / entry["file"] for entry in lists if not entry["trusted"]]
+    else:
+        preset_lists = [args.dist / args.preset / "all.txt"]
 
     failures = []
     work = Path(tempfile.mkdtemp(prefix="xenon-ublock-e2e-"))
@@ -166,7 +179,7 @@ def main():
                 servers[host] = start_server(host)
             url = servers[host][1]
             Recorder.requests, Recorder.report = [], None
-            text = run_browser(executable, work / f"profile-{name}", [preset_list, extra], url, blocking)
+            text = run_browser(executable, work / f"profile-{name}", [*preset_lists, extra], url, blocking, engine_arguments)
             arrived = set(Recorder.requests) - {"/test.html", "/report"}
             print(f"{name} ({url}, blocker {'on' if blocking else 'off'}):")
             print(f"  requests that reached the server: {sorted(arrived)}")
