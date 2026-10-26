@@ -1,6 +1,6 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Ryan <ryan@esterlines.com>
-Date: Mon, 26 Oct 2026 14:53:35 -0400
+Date: Mon, 26 Oct 2026 14:58:56 -0400
 Subject: [PATCH] Build Ladybird with xenon-ublock's engine patches
 
 xenon-ublock carries a Ladybird patch series that adds what uBlock
@@ -29,13 +29,13 @@ and add to the custom filters (UI/ElementPicker.cpp).
  Meta/check.py               |  8 +++++-
  Meta/update-filter-lists.py | 39 ++++++++++++++++++++--------
  Meta/xenon.py               | 51 +++++++++++++++++++++++++++++++++++--
- UI/ElementPicker.cpp        | 28 ++++++++++++++++++++
+ UI/ElementPicker.cpp        | 29 +++++++++++++++++++++
  UI/ElementPicker.h          | 20 +++++++++++++++
  UI/FilterLists.cpp          | 49 +++++++++++++++++++++++++----------
  UI/FilterLists.h            |  4 +++
  UI/Tab.cpp                  |  2 ++
  UI/Xenon.cmake              |  6 +++++
- 9 files changed, 180 insertions(+), 27 deletions(-)
+ 9 files changed, 181 insertions(+), 27 deletions(-)
  create mode 100644 UI/ElementPicker.cpp
  create mode 100644 UI/ElementPicker.h
 
@@ -247,10 +247,10 @@ index bf2e71c..d5530ac 100755
              f"-DCMAKE_C_COMPILER={cc}",
 diff --git a/UI/ElementPicker.cpp b/UI/ElementPicker.cpp
 new file mode 100644
-index 0000000..1465a9b
+index 0000000..8e222aa
 --- /dev/null
 +++ b/UI/ElementPicker.cpp
-@@ -0,0 +1,28 @@
+@@ -0,0 +1,29 @@
 +/*
 + * Copyright (c) 2026, the Xenon developers.
 + *
@@ -275,7 +275,8 @@ index 0000000..1465a9b
 +    if (!accepted)
 +        return;
 +
-+    WebView::Application::settings().add_custom_content_blocker_filter(ak_string_from_qstring(text).bytes_as_string_view());
++    auto edited_filter = ak_string_from_qstring(text);
++    WebView::Application::settings().add_custom_content_blocker_filter(edited_filter);
 +}
 +
 +}

@@ -66,6 +66,9 @@ Things to know when changing them:
   (`css-validation`), or `tools/build.py --engine xenon` would judge filters differently from the engine.
 - The procedural runtime is `Libraries/LibWeb/ContentBlocker/Rust/src/procedural.js`. It runs in the page's main
   world, like uBO's scriptlets. Ladybird has no isolated worlds yet, so pages can see and tamper with it.
+- CNAME uncloaking costs one IPC round trip between RequestServer and WebContent for each request whose host DNS
+  shows to be an alias (CDN hosts often are). It waits on WebContent's event loop, so a page busy running script
+  delays those requests until it yields.
 - Not covered yet: `$csp`, `$inline-script`, `$header`, `$permissions`, `$replace`, `$urlskip`, HTML filtering
   (`##^`), `:others()` and `:watch-attr()`, `$to` with positive domains, WebSocket and worker requests (WebSocket
   connections and worker fetches skip the content blocker in Ladybird).
