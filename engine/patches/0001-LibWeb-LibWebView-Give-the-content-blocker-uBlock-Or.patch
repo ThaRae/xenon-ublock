@@ -47,7 +47,8 @@ The following commits put these to use.
  Services/WebContent/ConnectionFromClient.cpp  |   4 +-
  Services/WebContent/ConnectionFromClient.h    |   2 +-
  Services/WebContent/WebContentServer.ipc      |   2 +-
- 12 files changed, 959 insertions(+), 22 deletions(-)
+ Tests/LibWeb/test-web/TestWebView.cpp         |   3 +-
+ 13 files changed, 961 insertions(+), 23 deletions(-)
  create mode 100644 Libraries/LibWeb/ContentBlocker/Rust/src/procedural.js
 
 diff --git a/Cargo.lock b/Cargo.lock
@@ -1375,3 +1376,17 @@ index 2daae248..092dd825 100644
  
      set_autoplay_settings(Web::PageId page_id, Web::HTML::AutoplayPolicy policy, Vector<Utf16String> allowlist) =|
      set_preferred_color_scheme(Web::PageId page_id, Web::CSS::PreferredColorScheme color_scheme) =|
+diff --git a/Tests/LibWeb/test-web/TestWebView.cpp b/Tests/LibWeb/test-web/TestWebView.cpp
+index 8258ecbb..2b7ee2fc 100644
+--- a/Tests/LibWeb/test-web/TestWebView.cpp
++++ b/Tests/LibWeb/test-web/TestWebView.cpp
+@@ -30,7 +30,8 @@ TestWebView::TestWebView(Core::AnonymousBuffer theme, Web::DevicePixelSize viewp
+ 
+ void TestWebView::clear_content_blockers()
+ {
+-    page().client().async_set_content_blockers(MUST(Core::AnonymousBuffer::create_with_size(0)));
++    auto empty = [] { return MUST(Core::AnonymousBuffer::create_with_size(0)); };
++    page().client().async_set_content_blockers(empty(), empty(), empty());
+ }
+ 
+ // Force-dark rides on the navigable, so a test that turns it on leaves it on for whatever runs next in this view.

@@ -43,6 +43,10 @@ filters, `$redirect-rule`, `$removeparam`, `$popup` and `$cname` filters that `-
   through the system resolver.
 - `tools/e2e_xenon.py --engine xenon --app PATH`: a whole preset, trusted lists and resources included.
 
+Ladybird's own tests should still pass on the patched tree: `TestContentBlocker` and the RequestServer tests, and
+the content blocker's web tests (`test-web --filter '*content-blocker*'`). Run `test-web` from inside the app bundle
+(`Xenon.app/Contents/MacOS`) so it finds the helper processes.
+
 ## Working on them
 
 The patches are `git format-patch` output from a branch:
