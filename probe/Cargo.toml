@@ -1,0 +1,19 @@
+[package]
+name = "xenon-ublock-probe"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+description = "Classifies filter lines the way Ladybird's content blocker parses them"
+publish = false
+
+# Keep `adblock` pinned to the exact version Ladybird's content blocker builds
+# (ladybird/Libraries/LibWeb/ContentBlocker/Rust/Cargo.toml) and with the same
+# features (the defaults: no `css-validation`, no resources). The probe is only
+# useful while it parses filters exactly as the engine does.
+[dependencies]
+adblock = "=0.13.3"
+regex = "=1.12.3"
+serde_json = "1.0"
+
+[profile.release]
+panic = "abort"

@@ -1,0 +1,38 @@
+# Expectations for a built preset (ubo or helium), checked by tools/verify.py against Ladybird's real engine with
+# the preset's all.txt loaded. Format: see harness/engine_check.c.
+
+# Well-known ad and tracker requests from a third-party page.
+block https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js https://www.example.com/ script
+block https://securepubads.g.doubleclick.net/tag/js/gpt.js https://www.example.com/ script
+block https://www.google-analytics.com/analytics.js https://www.example.com/ script
+block https://www.googletagmanager.com/gtag/js?id=G-XXXXXXX https://www.example.com/ script
+block https://connect.facebook.net/signals/config/1234567890 https://www.example.com/ script
+block https://ib.adnxs.com/ut/v3/prebid https://www.example.com/ xmlhttprequest
+block https://static.criteo.net/js/ld/publishertag.js https://www.example.com/ script
+
+# Peter Lowe's list is a hosts file upstream; this host only reaches the engine because build.py rewrote it.
+block https://101com.com/ https://www.example.com/ image
+
+# Ordinary requests stay allowed.
+allow https://www.example.com/ https://www.example.com/ document
+allow https://www.example.com/app.js https://www.example.com/ script
+allow https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js https://www.example.com/ script
+allow https://fonts.googleapis.com/css2?family=Inter https://www.example.com/ stylesheet
+allow https://upload.wikimedia.org/wikipedia/commons/a/a9/Example.jpg https://en.wikipedia.org/ image
+allow https://www.youtube.com/ https://www.youtube.com/ document
+allow https://github.githubassets.com/assets/app.js https://github.com/ script
+allow https://www.ladybird.org/ https://www.ladybird.org/ document
+
+# $denyallow, which the engine ignores, rewritten as a block filter plus exceptions. From uBO's list:
+#   $script,3p,denyallow=bootstrapcdn.com,domain=uploadflix.*
+block https://cdn.ad-network.example/x.js https://uploadflix.org/ script
+allow https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js https://uploadflix.org/ script
+
+# Generic cosmetic filters apply when the page has a matching class or id.
+hide https://www.example.com/ ads-banner - .ads-banner
+hide https://www.example.com/ - ad-banner-top #ad-banner-top
+show https://www.example.com/ - - .ads-banner
+
+# uBO's generic exception #@#.reklama turns .reklama hiding off on every page. The engine rejects generic exceptions,
+# so build.py removed the rules it cancels instead.
+show https://legionisci.com/ reklama - .reklama

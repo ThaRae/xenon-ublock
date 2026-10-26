@@ -1,0 +1,69 @@
+{
+  "presets": {
+    "ubo": {
+      "title": "uBlock Origin defaults",
+      "description": "The lists stock uBlock Origin enables on install.",
+      "assets": "https://raw.githubusercontent.com/gorhill/uBlock/master/assets/assets.json"
+    },
+    "helium": {
+      "title": "Helium defaults",
+      "description": "The lists Helium's uBlock Origin fork (imputnet/uBlock) enables on install: uBO's defaults plus AdGuard Ads, cookie-notice and annoyance lists, URL tracking protection, and Helium's own fixes.",
+      "assets": "https://raw.githubusercontent.com/imputnet/uBlock/main/assets/assets.json"
+    }
+  },
+
+  "environment": {
+    "_comment": "Values for uBO's !#if tokens. Ladybird is not Chromium, Firefox, Safari or a mobile build. Its cosmetic CSS is a user-origin style sheet, so cap_user_stylesheet holds. It cannot filter HTML or match IP addresses. Tokens not listed here are false, as in uBO.",
+    "ext_ublock": true,
+    "cap_user_stylesheet": true,
+    "ext_ubol": false,
+    "ext_devbuild": false,
+    "env_chromium": false,
+    "env_edge": false,
+    "env_firefox": false,
+    "env_legacy": false,
+    "env_mobile": false,
+    "env_mv3": false,
+    "env_safari": false,
+    "cap_html_filtering": false,
+    "cap_ipaddress": false,
+    "false": false
+  },
+
+  "licenses": {
+    "_comment": "Licenses of the upstream lists, keyed by uBO asset id. build.py also records each list's own '! License:' header. Lists without an entry are reported as needing review.",
+    "ublock-filters": { "license": "GPL-3.0", "url": "https://github.com/uBlockOrigin/uAssets/blob/master/LICENSE" },
+    "ublock-badware": { "license": "GPL-3.0", "url": "https://github.com/uBlockOrigin/uAssets/blob/master/LICENSE" },
+    "ublock-privacy": { "license": "GPL-3.0", "url": "https://github.com/uBlockOrigin/uAssets/blob/master/LICENSE" },
+    "ublock-unbreak": { "license": "GPL-3.0", "url": "https://github.com/uBlockOrigin/uAssets/blob/master/LICENSE" },
+    "ublock-quick-fixes": { "license": "GPL-3.0", "url": "https://github.com/uBlockOrigin/uAssets/blob/master/LICENSE" },
+    "ublock-experimental": { "license": "GPL-3.0", "url": "https://github.com/uBlockOrigin/uAssets/blob/master/LICENSE" },
+    "ublock-annoyances": { "license": "GPL-3.0", "url": "https://github.com/uBlockOrigin/uAssets/blob/master/LICENSE" },
+    "ublock-cookies-easylist": { "license": "GPL-3.0", "url": "https://github.com/uBlockOrigin/uAssets/blob/master/LICENSE" },
+    "ublock-cookies-adguard": { "license": "GPL-3.0", "url": "https://github.com/uBlockOrigin/uAssets/blob/master/LICENSE" },
+    "adguard-spyware-url": { "license": "GPL-3.0", "url": "https://github.com/uBlockOrigin/uAssets/blob/master/LICENSE" },
+    "block-lan": { "license": "GPL-3.0", "url": "https://github.com/uBlockOrigin/uAssets/blob/master/LICENSE" },
+    "helium-annoyances": { "license": "AGPL-3.0", "url": "https://github.com/imputnet/helium-services/blob/main/LICENSE" },
+    "helium-unbreak": { "license": "AGPL-3.0", "url": "https://github.com/imputnet/helium-services/blob/main/LICENSE" },
+    "easylist": { "license": "GPL-3.0-or-later OR CC-BY-SA-3.0-or-later", "url": "https://easylist.to/pages/licence.html" },
+    "easyprivacy": { "license": "GPL-3.0-or-later OR CC-BY-SA-3.0-or-later", "url": "https://easylist.to/pages/licence.html" },
+    "fanboy-cookiemonster": { "license": "GPL-3.0-or-later OR CC-BY-SA-3.0-or-later", "url": "https://easylist.to/pages/licence.html" },
+    "fanboy-social": { "license": "GPL-3.0-or-later OR CC-BY-SA-3.0-or-later", "url": "https://easylist.to/pages/licence.html" },
+    "easylist-annoyances": { "license": "GPL-3.0-or-later OR CC-BY-SA-3.0-or-later", "url": "https://easylist.to/pages/licence.html" },
+    "easylist-chat": { "license": "GPL-3.0-or-later OR CC-BY-SA-3.0-or-later", "url": "https://easylist.to/pages/licence.html" },
+    "easylist-newsletters": { "license": "GPL-3.0-or-later OR CC-BY-SA-3.0-or-later", "url": "https://easylist.to/pages/licence.html" },
+    "easylist-notifications": { "license": "GPL-3.0-or-later OR CC-BY-SA-3.0-or-later", "url": "https://easylist.to/pages/licence.html" },
+    "fanboy-ai-suggestions": { "license": "GPL-3.0-or-later OR CC-BY-SA-3.0-or-later", "url": "https://easylist.to/pages/licence.html" },
+    "adguard-generic": { "license": "GPL-3.0", "url": "https://github.com/AdguardTeam/AdguardFilters/blob/master/LICENSE" },
+    "adguard-mobile": { "license": "GPL-3.0", "url": "https://github.com/AdguardTeam/AdguardFilters/blob/master/LICENSE" },
+    "adguard-cookies": { "license": "GPL-3.0", "url": "https://github.com/AdguardTeam/AdguardFilters/blob/master/LICENSE" },
+    "adguard-social": { "license": "GPL-3.0", "url": "https://github.com/AdguardTeam/AdguardFilters/blob/master/LICENSE" },
+    "adguard-popup-overlays": { "license": "GPL-3.0", "url": "https://github.com/AdguardTeam/AdguardFilters/blob/master/LICENSE" },
+    "adguard-mobile-app-banners": { "license": "GPL-3.0", "url": "https://github.com/AdguardTeam/AdguardFilters/blob/master/LICENSE" },
+    "adguard-other-annoyances": { "license": "GPL-3.0", "url": "https://github.com/AdguardTeam/AdguardFilters/blob/master/LICENSE" },
+    "adguard-widgets": { "license": "GPL-3.0", "url": "https://github.com/AdguardTeam/AdguardFilters/blob/master/LICENSE" },
+    "urlhaus-1": { "license": "CC0-1.0", "url": "https://gitlab.com/malware-filter/urlhaus-filter#license" },
+    "plowe-0": { "license": "No license stated; credit Peter Lowe and ask pgl@yoyo.org before redistributing", "url": "https://pgl.yoyo.org/adservers/", "review": true },
+    "curben-phishing": { "license": "CC0-1.0", "url": "https://gitlab.com/malware-filter/phishing-filter#license" }
+  }
+}

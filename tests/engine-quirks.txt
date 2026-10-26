@@ -1,0 +1,140 @@
+# How Ladybird's content blocker treats uBO syntax, checked against the real engine.
+#
+# Each block of `rules` lines builds a fresh engine from just those filters. The vectors that follow assert what the
+# engine does today. These are the behaviors tools/build.py works around; if a vector here starts failing, the engine
+# changed and the matching translation or drop in build.py needs another look (see docs/gap-analysis.md).
+
+# Plain network filters, options, exceptions, and $important work.
+rules ||ads.example^
+rules ||cdn.example/ad/*$script,3p
+rules @@||ads.example/allowed.js
+rules ||tracker.example^$important
+rules @@||tracker.example^
+block https://ads.example/banner.png https://news.example/ image
+allow https://ads.example/allowed.js https://news.example/ script
+block https://cdn.example/ad/x.js https://news.example/ script
+allow https://cdn.example/ad/x.js https://cdn.example/ script
+allow https://cdn.example/ad/x.png https://news.example/ image
+block https://tracker.example/p.gif https://news.example/ image
+
+# Hosts-file lines are not understood: "127.0.0.1 host" parses as a literal URL substring and never matches.
+# build.py rewrites them to ||host^.
+rules 127.0.0.1 hosts-style.example
+allow https://hosts-style.example/ https://news.example/ script
+rules ||hosts-style.example^
+block https://hosts-style.example/ https://news.example/ script
+
+# Preprocessor directives are comments to the engine, so both branches of an !#if load. build.py evaluates them.
+rules !#if env_firefox
+rules ||firefox-only.example^
+rules !#endif
+block https://firefox-only.example/x.js https://news.example/ script
+
+# The optimizer fuses option-identical /regex/ filters into one RegexSet. One regex the Rust regex crate rejects
+# (look-around here) makes the whole set fail to compile, so every fused regex filter silently stops matching.
+rules /^https:\/\/fused-a\.example\/[0-9]+\.js/
+rules /^https:\/\/fused-b\.example\/x(?!y)/
+allow https://fused-a.example/123.js https://news.example/ script
+rules /^https:\/\/fused-a\.example\/[0-9]+\.js/
+block https://fused-a.example/123.js https://news.example/ script
+
+# Regex filters without $match-case are ASCII-lowercased before compiling, so \D becomes \d (and \W \w, \S \s).
+rules /\/promo\D/
+block https://news.example/promo7 https://news.example/ image
+allow https://news.example/promo- https://news.example/ image
+# build.py rewrites \D to [^0-9], which survives lowercasing.
+rules /\/promo[^0-9]/
+block https://news.example/promo- https://news.example/ image
+allow https://news.example/promo7 https://news.example/ image
+
+# $redirect= blocks (no surrogate is served: no resources are loaded); $redirect-rule=, $removeparam, $csp do nothing.
+rules ||redirect.example/a.js$script,redirect=noopjs
+rules ||redirect-rule.example/a.js$script,redirect-rule=noopjs
+rules ||removeparam.example^$removeparam=utm_source
+rules ||csp.example^$csp=script-src 'none'
+block https://redirect.example/a.js https://news.example/ script
+allow https://redirect-rule.example/a.js https://news.example/ script
+allow https://removeparam.example/?utm_source=x https://news.example/ document
+allow https://csp.example/ https://news.example/ document
+
+# $method never matches: the engine is not told the request method.
+rules ||method.example^$method=get
+rules ||method-negated.example^$method=~post
+allow https://method.example/x https://news.example/ xmlhttprequest
+allow https://method-negated.example/x https://news.example/ xmlhttprequest
+
+# Filters with $to are parsed, then discarded by the engine's builder, so $denyallow (which is $to=~...) is inert too.
+rules *$script,3p,to=ads-to.example
+rules ||denyallow.example^$script,3p,to=~cdn.example
+allow https://ads-to.example/x.js https://news.example/ script
+allow https://denyallow.example/x.js https://news.example/ script
+# build.py rewrites both forms into filters the engine keeps (the second only when scoped with $domain).
+rules ||ads-to.example^$script,3p
+rules *$script,3p,domain=news.example
+rules @@||cdn.example^$script,3p,domain=news.example
+block https://ads-to.example/x.js https://news.example/ script
+block https://other.example/x.js https://news.example/ script
+allow https://cdn.example/x.js https://news.example/ script
+
+# $domain entries are hashed literally: an entity (name.*) never matches, and a negated one never excludes.
+rules ||entity.example^$script,domain=news.*
+rules ||negated-entity.example^$script,domain=~news.*
+allow https://entity.example/x.js https://news.example/ script
+block https://negated-entity.example/x.js https://news.example/ script
+# build.py expands entities to explicit domains.
+rules ||entity.example^$script,domain=news.com|news.example|news.net
+block https://entity.example/x.js https://news.example/ script
+
+# Unknown options make the engine drop the whole filter.
+rules ||popup.example^$popup
+rules ||empty.example^$empty
+rules @@||elemhide.example^$elemhide
+rules ||reason.example^$reason=tracker
+allow https://popup.example/ https://news.example/ document
+allow https://empty.example/x.js https://news.example/ script
+allow https://reason.example/x.js https://news.example/ script
+# build.py translates $empty to $redirect=empty and strips $reason=.
+rules ||empty.example^$redirect=empty
+rules ||reason.example^
+block https://empty.example/x.js https://news.example/ script
+block https://reason.example/x.js https://news.example/ script
+
+# A plain hostname is a substring filter to the engine, but uBO reads it as ||hostname^.
+rules plain-host.example
+block https://elsewhere.example/?r=plain-host.example https://news.example/ image
+
+# Cosmetic: plain hiding works for specific, entity (example.*), and generic rules; generic ones are keyed by class/id.
+rules news.example##.sponsored
+rules news.*##.entity-ad
+rules ##.generic-ad
+rules ###generic-ad-id
+rules ##div[data-ad-slot]
+rules news.example#@#.generic-ad
+hide https://news.example/ - - .sponsored
+hide https://news.example/ - - .entity-ad
+hide https://other.example/ generic-ad - .generic-ad
+show https://other.example/ - - .generic-ad
+hide https://other.example/ - generic-ad-id #generic-ad-id
+hide https://other.example/ - - div[data-ad-slot]
+show https://news.example/ generic-ad - .generic-ad
+
+# $generichide exceptions turn generic hiding off for a site.
+rules ##.generic-ad
+rules @@||nogeneric.example^$generichide
+hide https://other.example/ generic-ad - .generic-ad
+show https://nogeneric.example/ generic-ad - .generic-ad
+
+# :style() is applied. :remove() is parsed but never applied; build.py turns it into plain hiding.
+rules news.example##.paywall:style(filter: none !important)
+rules news.example##.overlay:remove()
+hide https://news.example/ - - .paywall
+show https://news.example/ - - .overlay
+
+# Scriptlets parse but are never injected (no resources, no injection path).
+rules news.example##+js(set-constant, adsEnabled, false)
+show https://news.example/ - - set-constant, adsEnabled, false
+
+# Procedural operators are passed through as if they were CSS (css-validation is off), which Ladybird's CSS parser
+# then drops. build.py drops them up front.
+rules news.example##div:has-text(Sponsored)
+hide https://news.example/ - - div:has-text(Sponsored)
