@@ -1,8 +1,8 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Ryan <ryan@esterlines.com>
 Date: Mon, 26 Oct 2026 14:29:04 -0400
-Subject: [PATCH 1/6] LibWeb+LibWebView: Give the content blocker uBlock
- Origin's resources
+Subject: [PATCH] LibWeb+LibWebView: Give the content blocker uBlock Origin's
+ resources
 
 The content blocker now builds its engine from three parts instead of
 one rules buffer:
@@ -52,7 +52,7 @@ The following commits put these to use.
  create mode 100644 Libraries/LibWeb/ContentBlocker/Rust/src/procedural.js
 
 diff --git a/Cargo.lock b/Cargo.lock
-index 35edbe0f..b3508128 100644
+index 35edbe0fa34b4e0ad78991e25b08ea9af05aa1c8..b3508128c5be71b36aaa8b7d46fa2f3100f50be1 100644
 --- a/Cargo.lock
 +++ b/Cargo.lock
 @@ -12,6 +12,7 @@ dependencies = [
@@ -294,7 +294,7 @@ index 35edbe0f..b3508128 100644
  name = "smallvec"
  version = "1.16.3"
 diff --git a/Libraries/LibWeb/ContentBlocker/Rust/Cargo.toml b/Libraries/LibWeb/ContentBlocker/Rust/Cargo.toml
-index c47ff429..4e59b4e1 100644
+index c47ff4295f616ec908d6d6667942e51c717dc975..4e59b4e16f06656ff8f6c79cee3e52adc4d52bcf 100644
 --- a/Libraries/LibWeb/ContentBlocker/Rust/Cargo.toml
 +++ b/Libraries/LibWeb/ContentBlocker/Rust/Cargo.toml
 @@ -10,7 +10,9 @@ crate-type = ["staticlib"]
@@ -309,7 +309,7 @@ index c47ff429..4e59b4e1 100644
  rustc-demangle = "0.1"
  serde_json = "1.0"
 diff --git a/Libraries/LibWeb/ContentBlocker/Rust/src/lib.rs b/Libraries/LibWeb/ContentBlocker/Rust/src/lib.rs
-index 289f087b..f2ae52c1 100644
+index 289f087beb3d69524058b8333d78edf91bce7ed9..f2ae52c1215e0ced5babdcb5bf694cd680b9dde3 100644
 --- a/Libraries/LibWeb/ContentBlocker/Rust/src/lib.rs
 +++ b/Libraries/LibWeb/ContentBlocker/Rust/src/lib.rs
 @@ -23,9 +23,122 @@ pub struct ContentBlockerString {
@@ -708,7 +708,7 @@ index 289f087b..f2ae52c1 100644
  pub extern "C" fn rust_content_blocker_cosmetic_css(
 diff --git a/Libraries/LibWeb/ContentBlocker/Rust/src/procedural.js b/Libraries/LibWeb/ContentBlocker/Rust/src/procedural.js
 new file mode 100644
-index 00000000..c5c7af90
+index 0000000000000000000000000000000000000000..c5c7af90b0effdd29d2ca7a3b146a8f710c6e3bc
 --- /dev/null
 +++ b/Libraries/LibWeb/ContentBlocker/Rust/src/procedural.js
 @@ -0,0 +1,226 @@
@@ -939,7 +939,7 @@ index 00000000..c5c7af90
 +    schedule();
 +})
 diff --git a/Libraries/LibWeb/HTML/Window.h b/Libraries/LibWeb/HTML/Window.h
-index 601c78b2..4e67bd0d 100644
+index 601c78b2d6082ab46fe04bee3657699688e17c20..4e67bd0d510c475c037de87c8c636bcd0c950603 100644
 --- a/Libraries/LibWeb/HTML/Window.h
 +++ b/Libraries/LibWeb/HTML/Window.h
 @@ -175,6 +175,11 @@ public:
@@ -964,7 +964,7 @@ index 601c78b2..4e67bd0d 100644
  
  void run_animation_frame_callbacks(DOM::Document&, double now);
 diff --git a/Libraries/LibWeb/Loader/ContentBlocker.cpp b/Libraries/LibWeb/Loader/ContentBlocker.cpp
-index bccd55dd..3961e0b7 100644
+index bccd55ddf642a97bf939d30e40ed42ec40507e2a..3961e0b793727137e175ea8eb041742231afb5ba 100644
 --- a/Libraries/LibWeb/Loader/ContentBlocker.cpp
 +++ b/Libraries/LibWeb/Loader/ContentBlocker.cpp
 @@ -9,6 +9,10 @@
@@ -1096,7 +1096,7 @@ index bccd55dd..3961e0b7 100644
  {
      return cosmetic_style_sheet_for_url(url, {}, {});
 diff --git a/Libraries/LibWeb/Loader/ContentBlocker.h b/Libraries/LibWeb/Loader/ContentBlocker.h
-index be3aa176..4ea71815 100644
+index be3aa176401dc3cf61c7200da417fc6e0b89b5cc..4ea71815c02582f91e20cb52b19bcb2bb43b811a 100644
 --- a/Libraries/LibWeb/Loader/ContentBlocker.h
 +++ b/Libraries/LibWeb/Loader/ContentBlocker.h
 @@ -16,6 +16,7 @@
@@ -1150,7 +1150,7 @@ index be3aa176..4ea71815 100644
      Utf16String cosmetic_style_sheet_for_url(URL::URL const&) const;
      Utf16String cosmetic_style_sheet_for_url(URL::URL const&, ReadonlySpan<Utf16FlyString> classes, ReadonlySpan<Utf16FlyString> ids) const;
 diff --git a/Libraries/LibWebView/Application.cpp b/Libraries/LibWebView/Application.cpp
-index 938fda09..c2cdbaab 100644
+index 938fda09fc4befc3ef7048dafae2286e11af36a0..c2cdbaabab22045f5ca5ee49233519b2f89476dd 100644
 --- a/Libraries/LibWebView/Application.cpp
 +++ b/Libraries/LibWebView/Application.cpp
 @@ -355,6 +355,8 @@ ErrorOr<void> Application::initialize(Main::Arguments const& arguments)
@@ -1302,7 +1302,7 @@ index 938fda09..c2cdbaab 100644
      });
      ViewImplementation::for_each_view([](ViewImplementation& view) {
 diff --git a/Libraries/LibWebView/Application.h b/Libraries/LibWebView/Application.h
-index 97855467..70b37158 100644
+index 97855467bf83bf5bf7adf998cc9e2fd61d846554..70b3715806d167b7bf46ff31e424ae4a1001deb6 100644
 --- a/Libraries/LibWebView/Application.h
 +++ b/Libraries/LibWebView/Application.h
 @@ -459,6 +459,8 @@ private:
@@ -1333,7 +1333,7 @@ index 97855467..70b37158 100644
      Vector<PendingContentBlockerListUpdate> m_pending_content_blocker_list_updates;
      Optional<PendingContentBlockerListUpdate> m_active_content_blocker_list_update;
 diff --git a/Services/WebContent/ConnectionFromClient.cpp b/Services/WebContent/ConnectionFromClient.cpp
-index e223da21..12464ee0 100644
+index e223da21fd51020201f0b02c3a5b31de32140cdf..12464ee0da017c747cf83e39ba442c7b5a125207 100644
 --- a/Services/WebContent/ConnectionFromClient.cpp
 +++ b/Services/WebContent/ConnectionFromClient.cpp
 @@ -3138,11 +3138,11 @@ void ConnectionFromClient::set_content_blocking_policy(Web::PageId page_id, bool
@@ -1351,7 +1351,7 @@ index e223da21..12464ee0 100644
          dbgln("Failed to set content blockers: {}", result.error());
          return;
 diff --git a/Services/WebContent/ConnectionFromClient.h b/Services/WebContent/ConnectionFromClient.h
-index fb0eb6d9..7490414c 100644
+index fb0eb6d9ca9fd3986f8f059fba3db4abf5f7fe45..7490414c2ab9d0fc8b6d9014371affa29ac33da5 100644
 --- a/Services/WebContent/ConnectionFromClient.h
 +++ b/Services/WebContent/ConnectionFromClient.h
 @@ -241,7 +241,7 @@ private:
@@ -1364,7 +1364,7 @@ index fb0eb6d9..7490414c 100644
      virtual void set_autoplay_settings(Web::PageId page_id, Web::HTML::AutoplayPolicy policy, Vector<Utf16String> allowlist) override;
      virtual void set_preferred_color_scheme(Web::PageId page_id, Web::CSS::PreferredColorScheme) override;
 diff --git a/Services/WebContent/WebContentServer.ipc b/Services/WebContent/WebContentServer.ipc
-index 2daae248..092dd825 100644
+index 2daae2483dd04f0ea4578525c981579ef80f28fe..092dd82509aaa0f375c1e1b2c0eeebc608359651 100644
 --- a/Services/WebContent/WebContentServer.ipc
 +++ b/Services/WebContent/WebContentServer.ipc
 @@ -247,7 +247,7 @@ endpoint WebContentServer routed by Web::PageId page_id
@@ -1377,7 +1377,7 @@ index 2daae248..092dd825 100644
      set_autoplay_settings(Web::PageId page_id, Web::HTML::AutoplayPolicy policy, Vector<Utf16String> allowlist) =|
      set_preferred_color_scheme(Web::PageId page_id, Web::CSS::PreferredColorScheme color_scheme) =|
 diff --git a/Tests/LibWeb/test-web/TestWebView.cpp b/Tests/LibWeb/test-web/TestWebView.cpp
-index 8258ecbb..2b7ee2fc 100644
+index 8258ecbba43f5a0a36ec612df44b0cf54880b91e..2b7ee2fcdfe2778cb0cd234a85ab90ae29028c21 100644
 --- a/Tests/LibWeb/test-web/TestWebView.cpp
 +++ b/Tests/LibWeb/test-web/TestWebView.cpp
 @@ -30,7 +30,8 @@ TestWebView::TestWebView(Core::AnonymousBuffer theme, Web::DevicePixelSize viewp

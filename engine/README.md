@@ -25,6 +25,9 @@ The copy is a `git clone --shared` of the checkout (it borrows its objects) at `
 commits. Running it again is a no-op unless the patches or the base changed, so a build can run it every time.
 `--check` only tests that the patches apply.
 
+The files are exported with the same options as Xenon's own `Patches/ladybird` series (`Meta/patches.py export`), so
+they can join that series unchanged. They apply with `git am --3way` both after and before Xenon's patches.
+
 Xenon does this in `Meta/xenon.py` (see `integration/xenon/`), and passes the browser:
 
 - `--trusted-content-blocker-list` for uBO's own lists (`"trusted": true` in `dist-xenon/manifest.json`, the
@@ -58,7 +61,7 @@ git -C build/ladybird-dev am engine/patches/*.patch
 # ... edit, build (Meta/xenon.py builds from Build/ladybird-patched, or point a Xenon checkout's submodule at this
 # clone), commit or amend ...
 rm engine/patches/*.patch
-git -C build/ladybird-dev format-patch --zero-commit --no-signature -o "$PWD/engine/patches" $(cat engine/LADYBIRD_BASE)..
+git -C build/ladybird-dev format-patch --zero-commit --no-numbered --no-signature --full-index -o "$PWD/engine/patches" $(cat engine/LADYBIRD_BASE)..
 ```
 
 When Xenon moves its submodule to a new Ladybird commit, rebase the branch onto it (`git rebase NEW`), fix any

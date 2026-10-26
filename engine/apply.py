@@ -69,7 +69,7 @@ def prepare(ladybird: Path, into: Path) -> None:
     for command in (["am", "--abort"], ["checkout", "--quiet", "--force", "--detach", base], ["clean", "-fdq"]):
         git(into, *command)
 
-    result = git(into, "am", "--quiet", "--3way", *map(str, patches()))
+    result = git(into, "am", "--quiet", "--3way", "--keep-cr", "--committer-date-is-author-date", *map(str, patches()))
     if result.returncode != 0:
         failing = git(into, "am", "--show-current-patch=diff").stdout.splitlines()[:1]
         git(into, "am", "--abort")

@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Ryan <ryan@esterlines.com>
 Date: Mon, 26 Oct 2026 14:44:37 -0400
-Subject: [PATCH 6/6] LibWeb+LibWebView+WebContent: Add an element picker for
+Subject: [PATCH] LibWeb+LibWebView+WebContent: Add an element picker for
  cosmetic filters
 
 uBlock Origin's element picker lets the user click something on a page
@@ -40,7 +40,7 @@ Internals exposes the filter generator for tests.
  16 files changed, 226 insertions(+)
 
 diff --git a/Libraries/LibWeb/Internals/Internals.cpp b/Libraries/LibWeb/Internals/Internals.cpp
-index 39cb8904..ae0b1e9a 100644
+index 39cb890415e276f053daba386d2c13f0698c97b9..ae0b1e9a5ef450c6a317d5e411ff8d3141c33252 100644
 --- a/Libraries/LibWeb/Internals/Internals.cpp
 +++ b/Libraries/LibWeb/Internals/Internals.cpp
 @@ -1299,6 +1299,11 @@ void Internals::set_content_blocking_enabled(bool enabled)
@@ -56,7 +56,7 @@ index 39cb8904..ae0b1e9a 100644
  {
      return window().associated_document().partial_layout_count();
 diff --git a/Libraries/LibWeb/Internals/Internals.h b/Libraries/LibWeb/Internals/Internals.h
-index 1c8e42b1..8448534c 100644
+index 1c8e42b1dfd3303b8b357a2f67b943b0997f467e..8448534c886d9fc56ad818ca8952a4bb2fcc8e3b 100644
 --- a/Libraries/LibWeb/Internals/Internals.h
 +++ b/Libraries/LibWeb/Internals/Internals.h
 @@ -167,6 +167,7 @@ public:
@@ -68,7 +68,7 @@ index 1c8e42b1..8448534c 100644
      WebIDL::UnsignedLongLong full_layout_count();
      void begin_layout_trace();
 diff --git a/Libraries/LibWeb/Internals/Internals.idl b/Libraries/LibWeb/Internals/Internals.idl
-index c68f10a6..66279cf9 100644
+index c68f10a60703e09f8a8f7b35b782ddef32998e52..66279cf9bc970656ca60323581f8926f0b261f3f 100644
 --- a/Libraries/LibWeb/Internals/Internals.idl
 +++ b/Libraries/LibWeb/Internals/Internals.idl
 @@ -164,6 +164,7 @@ interface Internals {
@@ -80,7 +80,7 @@ index c68f10a6..66279cf9 100644
      unsigned long long fullLayoutCount();
      undefined beginLayoutTrace();
 diff --git a/Libraries/LibWeb/Loader/ContentBlocker.cpp b/Libraries/LibWeb/Loader/ContentBlocker.cpp
-index 5c3be759..e47f89f1 100644
+index 5c3be7593acaeb49d8f60c7c1cf9f80782ead3fa..e47f89f14314d6e9bfa0377002bde8db65151e1c 100644
 --- a/Libraries/LibWeb/Loader/ContentBlocker.cpp
 +++ b/Libraries/LibWeb/Loader/ContentBlocker.cpp
 @@ -8,12 +8,17 @@
@@ -202,7 +202,7 @@ index 5c3be759..e47f89f1 100644
  {
      // Scriptlets and procedural filters are cosmetic filters (##+js(), ##...:has-text()).
 diff --git a/Libraries/LibWeb/Loader/ContentBlocker.h b/Libraries/LibWeb/Loader/ContentBlocker.h
-index f8eb77c9..8ab045ec 100644
+index f8eb77c9d68e5336ed2da73d01fe929a59ee1c06..8ab045ece224d7e15b0c9a583fcaf9dd798fc04d 100644
 --- a/Libraries/LibWeb/Loader/ContentBlocker.h
 +++ b/Libraries/LibWeb/Loader/ContentBlocker.h
 @@ -79,6 +79,10 @@ public:
@@ -217,7 +217,7 @@ index f8eb77c9..8ab045ec 100644
      // scripts can run, once per Window.
      void run_page_script(DOM::Document&) const;
 diff --git a/Libraries/LibWebView/Menu.h b/Libraries/LibWebView/Menu.h
-index 8f31943d..740fd739 100644
+index 8f31943d6030bb80ba30ad71ec2a7c6ffa630a94..740fd739b689d01f255d050784219dc0d88da252 100644
 --- a/Libraries/LibWebView/Menu.h
 +++ b/Libraries/LibWebView/Menu.h
 @@ -51,6 +51,7 @@ enum class ActionID {
@@ -229,7 +229,7 @@ index 8f31943d..740fd739 100644
      ToggleVerticalTabsExpanded,
  
 diff --git a/Libraries/LibWebView/Settings.cpp b/Libraries/LibWebView/Settings.cpp
-index ca9bdfbc..9ffd61b1 100644
+index ca9bdfbc635856421f1a1295bba94c70be2871ec..9ffd61b12f367460d826ec4791ab0731b7685431 100644
 --- a/Libraries/LibWebView/Settings.cpp
 +++ b/Libraries/LibWebView/Settings.cpp
 @@ -1267,6 +1267,30 @@ bool Settings::remove_content_blocker_list(StringView identifier)
@@ -264,7 +264,7 @@ index ca9bdfbc..9ffd61b1 100644
  {
      if (m_custom_content_blocker_filters == filters)
 diff --git a/Libraries/LibWebView/Settings.h b/Libraries/LibWebView/Settings.h
-index 8bea550d..40c00b39 100644
+index 8bea550d0089e563c3c025c7e29d6efc3807a9fe..40c00b3960f5d0740f76911464dcdd6a2a127df4 100644
 --- a/Libraries/LibWebView/Settings.h
 +++ b/Libraries/LibWebView/Settings.h
 @@ -244,6 +244,8 @@ public:
@@ -277,7 +277,7 @@ index 8bea550d..40c00b39 100644
      static DNSSettings parse_dns_settings(JsonValue const&);
      DNSSettings const& dns_settings() const { return m_dns_settings; }
 diff --git a/Libraries/LibWebView/ViewImplementation.cpp b/Libraries/LibWebView/ViewImplementation.cpp
-index 0886253a..ae7ddb5e 100644
+index 0886253a3c152a005b33250cbdddcfe30ea5e8de..ae7ddb5e5dc289c77b612f4218f996fa54e43b75 100644
 --- a/Libraries/LibWebView/ViewImplementation.cpp
 +++ b/Libraries/LibWebView/ViewImplementation.cpp
 @@ -1742,6 +1742,44 @@ void ViewImplementation::request_node_picker_hit_test(NodePickerRequestType type
@@ -361,7 +361,7 @@ index 0886253a..ae7ddb5e 100644
      m_media_context_menu = Menu::create("Media Context Menu"sv);
      m_media_context_menu->add_action(*m_media_play_action);
 diff --git a/Libraries/LibWebView/ViewImplementation.h b/Libraries/LibWebView/ViewImplementation.h
-index 47d92356..061cdb71 100644
+index 47d92356048972f7a6a86a779a5c3d0d079fee4f..061cdb71672c74340cda0c0a846c9a89a0f49462 100644
 --- a/Libraries/LibWebView/ViewImplementation.h
 +++ b/Libraries/LibWebView/ViewImplementation.h
 @@ -324,6 +324,15 @@ public:
@@ -407,7 +407,7 @@ index 47d92356..061cdb71 100644
  };
  
 diff --git a/Libraries/LibWebView/WebContentPage.cpp b/Libraries/LibWebView/WebContentPage.cpp
-index 884a2fc4..45dd3048 100644
+index 884a2fc4fd4d27f748b41cb270a57fb2bfa3338f..45dd3048aefbed2f46a540ecf3c63f9ef5795ca5 100644
 --- a/Libraries/LibWebView/WebContentPage.cpp
 +++ b/Libraries/LibWebView/WebContentPage.cpp
 @@ -1092,6 +1092,12 @@ void WebContentPage::did_get_hovered_node_id(Web::UniqueNodeID node_id)
@@ -424,7 +424,7 @@ index 884a2fc4..45dd3048 100644
  {
      if (displays_tab()) {
 diff --git a/Libraries/LibWebView/WebContentPage.h b/Libraries/LibWebView/WebContentPage.h
-index c3a17df4..a92fdf63 100644
+index c3a17df4c19f67875fce048de5a96c43048f6287..a92fdf63b91a28812ae071035f48a3be525aba52 100644
 --- a/Libraries/LibWebView/WebContentPage.h
 +++ b/Libraries/LibWebView/WebContentPage.h
 @@ -207,6 +207,7 @@ private:
@@ -436,7 +436,7 @@ index c3a17df4..a92fdf63 100644
      virtual void did_get_style_sheet_source(Web::CSS::StyleSheetIdentifier identifier, URL::URL base_url, Utf16String source) override;
      virtual void did_list_devtools_sources(u64 request_id, Vector<Web::HTML::ScriptRegistryDescription> sources) override;
 diff --git a/Services/WebContent/ConnectionFromClient.cpp b/Services/WebContent/ConnectionFromClient.cpp
-index 12464ee0..b2d40db0 100644
+index 12464ee0da017c747cf83e39ba442c7b5a125207..b2d40db058d24f9a0d27ccce363d0c551f01ffed 100644
 --- a/Services/WebContent/ConnectionFromClient.cpp
 +++ b/Services/WebContent/ConnectionFromClient.cpp
 @@ -2029,6 +2029,20 @@ void ConnectionFromClient::get_node_id_at_position(Web::PageId page_id, u64 requ
@@ -461,7 +461,7 @@ index 12464ee0..b2d40db0 100644
  {
      auto page = this->page(page_id);
 diff --git a/Services/WebContent/ConnectionFromClient.h b/Services/WebContent/ConnectionFromClient.h
-index 7490414c..6f632f77 100644
+index 7490414c2ab9d0fc8b6d9014371affa29ac33da5..6f632f7775b2b8f5ed04b809f6c352f8915c1dc2 100644
 --- a/Services/WebContent/ConnectionFromClient.h
 +++ b/Services/WebContent/ConnectionFromClient.h
 @@ -206,6 +206,7 @@ private:
@@ -473,7 +473,7 @@ index 7490414c..6f632f77 100644
      virtual void list_style_sheets(Web::PageId page_id) override;
      virtual void request_style_sheet_source(Web::PageId page_id, Web::CSS::StyleSheetIdentifier identifier) override;
 diff --git a/Services/WebContent/WebContentClient.ipc b/Services/WebContent/WebContentClient.ipc
-index 5ab4f8c0..4d6946b8 100644
+index 5ab4f8c082c3dbcceff6eb6ed2b7ec6f13e9b29b..4d6946b830203888fe502ca1d8857d1aa2f210bb 100644
 --- a/Services/WebContent/WebContentClient.ipc
 +++ b/Services/WebContent/WebContentClient.ipc
 @@ -153,6 +153,7 @@ endpoint WebContentClient routed by Web::PageId page_id
@@ -485,7 +485,7 @@ index 5ab4f8c0..4d6946b8 100644
      did_mutate_dom(Web::PageId page_id, WebView::Mutation mutation) =|
      did_get_dom_node_html(Web::PageId page_id, String html) =|
 diff --git a/Services/WebContent/WebContentServer.ipc b/Services/WebContent/WebContentServer.ipc
-index 092dd825..ce4982fe 100644
+index 092dd82509aaa0f375c1e1b2c0eeebc608359651..ce4982fefa20036eda4526fab0045a3d29f15b10 100644
 --- a/Services/WebContent/WebContentServer.ipc
 +++ b/Services/WebContent/WebContentServer.ipc
 @@ -185,6 +185,7 @@ endpoint WebContentServer routed by Web::PageId page_id

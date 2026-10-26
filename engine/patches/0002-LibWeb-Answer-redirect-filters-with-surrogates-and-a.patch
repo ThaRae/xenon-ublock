@@ -1,8 +1,8 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Ryan <ryan@esterlines.com>
 Date: Mon, 26 Oct 2026 14:29:17 -0400
-Subject: [PATCH 2/6] LibWeb: Answer $redirect filters with surrogates, and
- apply $removeparam
+Subject: [PATCH] LibWeb: Answer $redirect filters with surrogates, and apply
+ $removeparam
 
 A request that a $redirect filter blocks is now answered with the
 filter's surrogate (a no-op script, an empty frame, a 1x1 GIF, a stub of
@@ -23,7 +23,7 @@ The blocker now also gets the request method, so $method filters match.
  2 files changed, 66 insertions(+), 6 deletions(-)
 
 diff --git a/Libraries/LibWeb/Fetch/Fetching/Fetching.cpp b/Libraries/LibWeb/Fetch/Fetching/Fetching.cpp
-index 2a6145f0..43e2f572 100644
+index 2a6145f089716148890df2247d73d8c27ced1077..43e2f57236949b50ec71106cfd6e057c983b299b 100644
 --- a/Libraries/LibWeb/Fetch/Fetching/Fetching.cpp
 +++ b/Libraries/LibWeb/Fetch/Fetching/Fetching.cpp
 @@ -61,6 +61,7 @@
@@ -74,7 +74,7 @@ index 2a6145f0..43e2f572 100644
          dbgln_if(WEB_FETCH_DEBUG, "Fetch: Running 'main fetch' get_response() function");
          auto const* origin = request->origin().get_pointer<URL::Origin>();
 diff --git a/Libraries/LibWeb/Loader/ResourceLoader.cpp b/Libraries/LibWeb/Loader/ResourceLoader.cpp
-index 3367c1a8..65570016 100644
+index 3367c1a87eaad239e1685ac711e82b1b053fa239..655700169304ac007a49e18d77fc006b3042ceb7 100644
 --- a/Libraries/LibWeb/Loader/ResourceLoader.cpp
 +++ b/Libraries/LibWeb/Loader/ResourceLoader.cpp
 @@ -27,6 +27,7 @@

@@ -1,8 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Ryan <ryan@esterlines.com>
 Date: Mon, 26 Oct 2026 14:40:36 -0400
-Subject: [PATCH 5/6] RequestServer+LibWeb: Uncloak CNAMEs for the content
- blocker
+Subject: [PATCH] RequestServer+LibWeb: Uncloak CNAMEs for the content blocker
 
 Trackers hide behind first-party names: metrics.example.com is a CNAME
 for a tracker's host, so filters for the tracker never see it. uBlock
@@ -55,7 +54,7 @@ it as a one-step CNAME.
  24 files changed, 202 insertions(+), 23 deletions(-)
 
 diff --git a/Libraries/LibCore/Socket.cpp b/Libraries/LibCore/Socket.cpp
-index 3c244a3f..44ca7c5b 100644
+index 3c244a3f55e974546b7800952347ebf98322530a..44ca7c5be81709fcd5159b7f92a174cc94603440 100644
 --- a/Libraries/LibCore/Socket.cpp
 +++ b/Libraries/LibCore/Socket.cpp
 @@ -49,8 +49,11 @@ ErrorOr<int> Socket::create_fd(SocketDomain domain, SocketType type)
@@ -108,7 +107,7 @@ index 3c244a3f..44ca7c5b 100644
  
  ErrorOr<void> Socket::connect_local(int fd, ByteString const& path)
 diff --git a/Libraries/LibCore/Socket.h b/Libraries/LibCore/Socket.h
-index c73a4204..816676ac 100644
+index c73a4204239a4cfafdc19e686eb4ac7f42863f24..816676aca6dee3a14ef39d5bd4e143edf0a745e8 100644
 --- a/Libraries/LibCore/Socket.h
 +++ b/Libraries/LibCore/Socket.h
 @@ -71,6 +71,13 @@ public:
@@ -126,7 +125,7 @@ index c73a4204..816676ac 100644
  
  protected:
 diff --git a/Libraries/LibCore/SocketWindows.cpp b/Libraries/LibCore/SocketWindows.cpp
-index 31181bcc..2a8b8c92 100644
+index 31181bccc5f53bdd24aa3b94ac2db3560e8311b5..2a8b8c92fc2475f75058a9324ba1e8187b7976f1 100644
 --- a/Libraries/LibCore/SocketWindows.cpp
 +++ b/Libraries/LibCore/SocketWindows.cpp
 @@ -286,6 +286,12 @@ ErrorOr<Vector<Variant<IPv4Address, IPv6Address>>> Socket::resolve_host(ByteStri
@@ -143,7 +142,7 @@ index 31181bcc..2a8b8c92 100644
  {
      if (address.type() == SocketAddress::Type::IPv6) {
 diff --git a/Libraries/LibDNS/Resolver.h b/Libraries/LibDNS/Resolver.h
-index f1c7e55a..059d1cf7 100644
+index f1c7e55a26fd0d38c4263d1044a7d8bbed05aff1..059d1cf7556647a2496c1eca6622db49a8c4ff8a 100644
 --- a/Libraries/LibDNS/Resolver.h
 +++ b/Libraries/LibDNS/Resolver.h
 @@ -484,7 +484,7 @@ public:
@@ -182,7 +181,7 @@ index f1c7e55a..059d1cf7 100644
                      [&](IPv4Address const& address) {
                          state.result->add_record({ .name = {}, .type = Messages::ResourceType::A, .class_ = Messages::Class::IN, .ttl = SYSTEM_RESOLVER_SYNTHETIC_TTL_SECONDS, .record = Messages::Records::A { address }, .raw = {} });
 diff --git a/Libraries/LibRequests/NetworkError.h b/Libraries/LibRequests/NetworkError.h
-index ddeb9b60..e9e3ca3d 100644
+index ddeb9b60bef425613e4c653f970bb3d7cbe0d0f7..e9e3ca3d1cbcd3a3cb91f7f1ec3dd8bf203f83d6 100644
 --- a/Libraries/LibRequests/NetworkError.h
 +++ b/Libraries/LibRequests/NetworkError.h
 @@ -23,6 +23,7 @@ enum class NetworkError {
@@ -203,7 +202,7 @@ index ddeb9b60..e9e3ca3d 100644
          return "An unexpected network error occurred"sv;
      }
 diff --git a/Libraries/LibRequests/Request.cpp b/Libraries/LibRequests/Request.cpp
-index 9178d280..54ca4cc7 100644
+index 9178d280fff700cbd6966f9ee2dd8b0c4f6e7cef..54ca4cc7f901cf727400b4d19d90acbdd882665a 100644
 --- a/Libraries/LibRequests/Request.cpp
 +++ b/Libraries/LibRequests/Request.cpp
 @@ -67,6 +67,12 @@ int Request::request_server_client_id() const
@@ -220,7 +219,7 @@ index 9178d280..54ca4cc7 100644
  {
      RefPtr keep_alive = *this;
 diff --git a/Libraries/LibRequests/Request.h b/Libraries/LibRequests/Request.h
-index 18a05916..88dc47ae 100644
+index 18a059165e91b6b6f4d94e11b4a1055d717650a8..88dc47ae155c380b23592539db6729167b9cd8cc 100644
 --- a/Libraries/LibRequests/Request.h
 +++ b/Libraries/LibRequests/Request.h
 @@ -124,6 +124,10 @@ public:
@@ -235,7 +234,7 @@ index 18a05916..88dc47ae 100644
      Function<void()> on_teardown;
  
 diff --git a/Libraries/LibRequests/RequestClient.cpp b/Libraries/LibRequests/RequestClient.cpp
-index d117eb55..0b058180 100644
+index d117eb55dbd7cb9ca18e47babca9b6acfe63bcb4..0b0581809efc13fb756fd8cf005d2ecdd68f2d30 100644
 --- a/Libraries/LibRequests/RequestClient.cpp
 +++ b/Libraries/LibRequests/RequestClient.cpp
 @@ -79,7 +79,7 @@ void RequestClient::die()
@@ -278,7 +277,7 @@ index d117eb55..0b058180 100644
  {
      if (auto request = m_requests.get(request_id); request.has_value()) {
 diff --git a/Libraries/LibRequests/RequestClient.h b/Libraries/LibRequests/RequestClient.h
-index 3946c33f..10a71e4c 100644
+index 3946c33fa586429ed00994089258a716db74ed7a..10a71e4c395d0789af17915ebd6385896ae5886d 100644
 --- a/Libraries/LibRequests/RequestClient.h
 +++ b/Libraries/LibRequests/RequestClient.h
 @@ -51,7 +51,14 @@ public:
@@ -314,7 +313,7 @@ index 3946c33f..10a71e4c 100644
      virtual void request_body_file_available(u64 request_id, IPC::File, u64 offset, u64 size) override;
      virtual void request_cached_body_file_available(u64 request_id, IPC::File, u64 offset, u64 size) override;
 diff --git a/Libraries/LibWeb/Loader/ContentBlocker.cpp b/Libraries/LibWeb/Loader/ContentBlocker.cpp
-index 3961e0b7..5c3be759 100644
+index 3961e0b793727137e175ea8eb041742231afb5ba..5c3be7593acaeb49d8f60c7c1cf9f80782ead3fa 100644
 --- a/Libraries/LibWeb/Loader/ContentBlocker.cpp
 +++ b/Libraries/LibWeb/Loader/ContentBlocker.cpp
 @@ -267,6 +267,17 @@ bool ContentBlocker::is_popup_filtered(URL::URL const& url, URL::URL const& open
@@ -336,7 +335,7 @@ index 3961e0b7..5c3be759 100644
  {
      // Scriptlets and procedural filters are cosmetic filters (##+js(), ##...:has-text()).
 diff --git a/Libraries/LibWeb/Loader/ContentBlocker.h b/Libraries/LibWeb/Loader/ContentBlocker.h
-index 4ea71815..f8eb77c9 100644
+index 4ea71815c02582f91e20cb52b19bcb2bb43b811a..f8eb77c9d68e5336ed2da73d01fe929a59ee1c06 100644
 --- a/Libraries/LibWeb/Loader/ContentBlocker.h
 +++ b/Libraries/LibWeb/Loader/ContentBlocker.h
 @@ -75,6 +75,10 @@ public:
@@ -351,7 +350,7 @@ index 4ea71815..f8eb77c9 100644
      // scripts can run, once per Window.
      void run_page_script(DOM::Document&) const;
 diff --git a/Libraries/LibWeb/Loader/ResourceLoader.cpp b/Libraries/LibWeb/Loader/ResourceLoader.cpp
-index 65570016..a3406c34 100644
+index 655700169304ac007a49e18d77fc006b3042ceb7..a3406c3456cdcf48460e97814d8a50d563c83e5f 100644
 --- a/Libraries/LibWeb/Loader/ResourceLoader.cpp
 +++ b/Libraries/LibWeb/Loader/ResourceLoader.cpp
 @@ -521,8 +521,11 @@ RefPtr<Requests::Request> ResourceLoader::load(LoadRequest& request, GC::Root<On
@@ -399,7 +398,7 @@ index 65570016..a3406c34 100644
          Optional<String> initiator_type_string;
          if (request.initiator_type().has_value())
 diff --git a/Services/RequestServer/ConnectionFromClient.cpp b/Services/RequestServer/ConnectionFromClient.cpp
-index b2ac2ddc..fb1dc30c 100644
+index b2ac2ddcf223bc6bba9141ed2eefe7fee4d7f414..fb1dc30c7774035f3a56501836cad28a27b85378 100644
 --- a/Services/RequestServer/ConnectionFromClient.cpp
 +++ b/Services/RequestServer/ConnectionFromClient.cpp
 @@ -293,7 +293,7 @@ bool ConnectionFromClient::is_live_request_id(u64 request_id) const
@@ -434,7 +433,7 @@ index b2ac2ddc..fb1dc30c 100644
  {
      auto request = m_active_requests.take(request_id);
 diff --git a/Services/RequestServer/ConnectionFromClient.h b/Services/RequestServer/ConnectionFromClient.h
-index 675be55f..fde1688c 100644
+index 675be55f1a3d74b84ca9d6e412fa9768662e7163..fde1688c4baed69c89157c02f44fb338cd09b788 100644
 --- a/Services/RequestServer/ConnectionFromClient.h
 +++ b/Services/RequestServer/ConnectionFromClient.h
 @@ -86,7 +86,8 @@ private:
@@ -448,7 +447,7 @@ index 675be55f..fde1688c 100644
      virtual void release_request_transfer_lease(int source_client_id, u64 source_request_id) override;
      virtual Messages::RequestServer::StopRequestResponse stop_request(u64 request_id) override;
 diff --git a/Services/RequestServer/Request.cpp b/Services/RequestServer/Request.cpp
-index b8053954..9d9a905c 100644
+index b8053954b5248b2d34d8ce5b4250c1abfccd35da..9d9a905c8c2da10e54fbf03362d1181570ad5a51 100644
 --- a/Services/RequestServer/Request.cpp
 +++ b/Services/RequestServer/Request.cpp
 @@ -464,11 +464,13 @@ NonnullOwnPtr<Request> Request::fetch(
@@ -527,7 +526,7 @@ index b8053954..9d9a905c 100644
  {
      if (m_alternative_service.has_value() && !m_alternative_service->host.is_empty())
 diff --git a/Services/RequestServer/Request.h b/Services/RequestServer/Request.h
-index 63fd505c..0b97b1ae 100644
+index 63fd505c1f48ca06e5a3fe5e8109b833c285314c..0b97b1ae89b024fe016b36f97de63b55d46b8bc1 100644
 --- a/Services/RequestServer/Request.h
 +++ b/Services/RequestServer/Request.h
 @@ -64,7 +64,11 @@ public:
@@ -555,7 +554,7 @@ index 63fd505c..0b97b1ae 100644
      RefPtr<ConnectionFromClient> m_network_connection_keep_alive;
  
 diff --git a/Services/RequestServer/RequestClient.ipc b/Services/RequestServer/RequestClient.ipc
-index 59231ebb..88826f0d 100644
+index 59231ebbeaa80520aec6bc9f05d33560f7603eca..88826f0d40ba436c0a233710561d30d0f753ff2f 100644
 --- a/Services/RequestServer/RequestClient.ipc
 +++ b/Services/RequestServer/RequestClient.ipc
 @@ -9,6 +9,9 @@
@@ -569,7 +568,7 @@ index 59231ebb..88826f0d 100644
      request_body_file_available(u64 request_id, IPC::File fd, u64 offset, u64 size) =|
      request_cached_body_file_available(u64 request_id, IPC::File fd, u64 offset, u64 size) =|
 diff --git a/Services/RequestServer/RequestServer.ipc b/Services/RequestServer/RequestServer.ipc
-index b7e3d782..9b860509 100644
+index b7e3d7825a577799e8dfc9ac41a3eafb8565370e..9b860509edac80dedd96ef2c5c5c73ef54df8684 100644
 --- a/Services/RequestServer/RequestServer.ipc
 +++ b/Services/RequestServer/RequestServer.ipc
 @@ -17,7 +17,9 @@ endpoint RequestServer
@@ -584,7 +583,7 @@ index b7e3d782..9b860509 100644
      release_request_transfer_lease(int source_client_id, u64 source_request_id) =|
      stop_request(u64 request_id) => (bool success)
 diff --git a/Tests/RequestServer/TestContentCodingRetry.cpp b/Tests/RequestServer/TestContentCodingRetry.cpp
-index 87161679..76e760eb 100644
+index 87161679684ae7f3a72ed6916e85274354507c3e..76e760eba1173a03f2d17ef9ad2223bd605e155a 100644
 --- a/Tests/RequestServer/TestContentCodingRetry.cpp
 +++ b/Tests/RequestServer/TestContentCodingRetry.cpp
 @@ -111,7 +111,7 @@ TEST_CASE(content_coding_retry_keeps_client_supplied_cookie_header)
@@ -597,7 +596,7 @@ index 87161679..76e760eb 100644
  
      event_loop.spin_until([&] { return server.request_heads().size() >= 2; });
 diff --git a/Tests/RequestServer/TestCookieResponses.cpp b/Tests/RequestServer/TestCookieResponses.cpp
-index 119426c9..47871805 100644
+index 119426c92c3973f48471254c08de34e3c48eaf74..47871805eb1eb6ba4567bddf940ecf7a51d865ba 100644
 --- a/Tests/RequestServer/TestCookieResponses.cpp
 +++ b/Tests/RequestServer/TestCookieResponses.cpp
 @@ -175,7 +175,7 @@ public:
@@ -610,7 +609,7 @@ index 119426c9..47871805 100644
          VERIFY(!response);
      }
 diff --git a/Tests/RequestServer/TestDiskCacheWaiters.cpp b/Tests/RequestServer/TestDiskCacheWaiters.cpp
-index 28115795..0a1ffdab 100644
+index 28115795e7d355ee766eed49642ece75949de110..0a1ffdabfed54ea7dc793336ae3e1eb4d75fb48e 100644
 --- a/Tests/RequestServer/TestDiskCacheWaiters.cpp
 +++ b/Tests/RequestServer/TestDiskCacheWaiters.cpp
 @@ -254,7 +254,7 @@ public:
@@ -623,7 +622,7 @@ index 28115795..0a1ffdab 100644
          VERIFY(!response);
      }
 diff --git a/Tests/RequestServer/TestExportImport.cpp b/Tests/RequestServer/TestExportImport.cpp
-index fe1bd1c3..5dead3a4 100644
+index fe1bd1c317c743d2bd74a100aad2b36b4a76c076..5dead3a4ebbf5e9e82fbbf4a0eb8b85f139bbb80 100644
 --- a/Tests/RequestServer/TestExportImport.cpp
 +++ b/Tests/RequestServer/TestExportImport.cpp
 @@ -98,7 +98,7 @@ public:
@@ -636,7 +635,7 @@ index fe1bd1c3..5dead3a4 100644
      }
  
 diff --git a/Tests/RequestServer/TestRequestTimingInfo.cpp b/Tests/RequestServer/TestRequestTimingInfo.cpp
-index 3610ac83..41752c5e 100644
+index 3610ac83f15ab207f8b35300dab3c50673cd65df..41752c5e75afeff8e7ce229e2fcb5d76ba2dfdf2 100644
 --- a/Tests/RequestServer/TestRequestTimingInfo.cpp
 +++ b/Tests/RequestServer/TestRequestTimingInfo.cpp
 @@ -145,7 +145,7 @@ public:
@@ -649,7 +648,7 @@ index 3610ac83..41752c5e 100644
          VERIFY(!response);
  
 diff --git a/Tests/RequestServer/TestSiteBinding.cpp b/Tests/RequestServer/TestSiteBinding.cpp
-index 1849e806..0fa01792 100644
+index 1849e806c44f5b4146ad1284e84f31962d114f89..0fa017924e0cde4699723d2e42b4fb08799cace4 100644
 --- a/Tests/RequestServer/TestSiteBinding.cpp
 +++ b/Tests/RequestServer/TestSiteBinding.cpp
 @@ -103,7 +103,7 @@ struct TestServer {
