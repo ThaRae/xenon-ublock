@@ -48,7 +48,13 @@ filters, `$redirect-rule`, `$removeparam`, `$popup` and `$cname` filters that `-
 
 Ladybird's own tests should still pass on the patched tree: `TestContentBlocker` and the RequestServer tests, and
 the content blocker's web tests (`test-web --filter '*content-blocker*'`). Run `test-web` from inside the app bundle
-(`Xenon.app/Contents/MacOS`) so it finds the helper processes.
+(`Xenon.app/Contents/MacOS`) so it finds the helper processes, and give it a Python that has `cryptography`
+(`--python-executable`); without it the fixture server has no HTTPS, and the HTTPS tests fail.
+
+From Xenon's build tree, `test-web` doesn't find Ladybird's theme (it looks in `bin/../Resources`), so the
+`display_list` tests that dump selection colors see black ones. Under full load, a media test can trip a VERIFY in
+`HTMLMediaElement::handle_playback_manager_error`, and test-web then aborts while respawning the process. That's
+upstream; run the rest of the suite in smaller `--filter` groups.
 
 ## Working on them
 
