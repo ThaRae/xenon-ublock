@@ -685,10 +685,9 @@ def translate_cosmetic(line: str, marker_match: re.Match) -> Outcome:
     unquoted = strip_quoted(selector)
     procedural = PROCEDURAL.search(unquoted)
     if procedural:
-        operator = procedural.group(1)
-        if operator in ("remove-attr", "remove-class"):
+        if procedural.group(1) in ("remove-attr", "remove-class"):
             return Outcome(None, "needs-engine:dom-actions")
-        return Outcome(None, f"needs-engine:procedural")
+        return Outcome(None, "needs-engine:procedural")
     if "[-ext-" in unquoted:
         return Outcome(None, "needs-engine:procedural")
     if not selector or not selector_is_balanced(selector):

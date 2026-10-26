@@ -288,3 +288,4 @@ The ids used in `dist/<preset>/report.md` and `dropped/*.tsv`.
 | `unsupported-option` | Any other option `adblock` does not know |
 | `engine-rejects:*` | Anything else the probe says the engine rejects, with its error |
 | `invalid-utf8` | A line that was not valid UTF-8 upstream |
+| `empty` | Nothing after `##`, or a network filter with neither pattern nor options |
